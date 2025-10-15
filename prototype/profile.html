@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>我的 - 信用卡账单管理</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        html, body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            height: 100%;
+            overflow-x: hidden;
+        }
+        body {
+            position: relative;
+        }
+        .profile-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .menu-item {
+            transition: all 0.3s ease;
+        }
+        .menu-item:hover {
+            background-color: #f8fafc;
+            transform: translateX(4px);
+        }
+        .popup-overlay {
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(4px);
+        }
+        .avatar {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            object-fit: cover;
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <!-- 状态栏 -->
+    <div class="fixed top-0 left-0 right-0 bg-white px-4 py-2 flex justify-between items-center text-sm z-50" style="height: 44px;">
+        <span class="font-medium">9:41</span>
+        <div class="flex items-center space-x-1">
+            <i class="fas fa-signal text-xs"></i>
+            <i class="fas fa-wifi text-xs"></i>
+            <i class="fas fa-battery-three-quarters text-xs"></i>
+        </div>
+    </div>
+
+    <!-- 顶部导航栏 -->
+    <div class="fixed left-0 right-0 bg-white shadow-sm px-4 py-3 z-40" style="top: 44px;">
+        <div class="flex items-center justify-center">
+            <h1 class="text-lg font-semibold text-gray-800">个人页面</h1>
+        </div>
+    </div>
+
+    <!-- 个人信息头部 -->
+    <div class="profile-header text-white px-6 py-8" style="margin-top: 88px;">
+        <div class="flex flex-col items-center justify-center">
+            <img src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face" 
+                 alt="用户头像" class="avatar border-4 border-white shadow-lg mb-4" onclick="changeAvatar()">
+            <h2 class="text-2xl font-bold" onclick="editUsername()">张三</h2>
+        </div>
+    </div>
+
+    <!-- 统计信息 -->
+    <div class="bg-white mx-4 -mt-6 rounded-xl shadow-sm p-4 mb-6">
+        <div class="grid grid-cols-3 gap-4 text-center">
+            <div>
+                <p class="text-2xl font-bold text-blue-600">5</p>
+                <p class="text-sm text-gray-600">信用卡数量</p>
+            </div>
+            <div>
+                <p class="text-2xl font-bold text-green-600">3</p>
+                <p class="text-sm text-gray-600">分期账单</p>
+            </div>
+            <div>
+                <p class="text-2xl font-bold text-orange-600">12</p>
+                <p class="text-sm text-gray-600">待还提醒</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- 功能菜单 -->
+    <div class="px-4 space-y-4">
+        <div class="bg-white rounded-xl shadow-sm mb-20">
+            <div class="menu-item px-4 py-4 flex items-center justify-between cursor-pointer" onclick="showMessageSubscription()">
+                <div class="flex items-center">
+                    <i class="fas fa-bell text-gray-400 mr-3"></i>
+                    <div>
+                        <p class="font-medium text-gray-800">消息订阅</p>
+                        <p class="text-sm text-gray-500">管理推送通知</p>
+                    </div>
+                </div>
+                <i class="fas fa-chevron-right text-gray-400"></i>
+            </div>
+            <div class="menu-item px-4 py-4 flex items-center justify-between cursor-pointer" onclick="showAbout()">
+                <div class="flex items-center">
+                    <i class="fas fa-info-circle text-gray-400 mr-3"></i>
+                    <div>
+                        <p class="font-medium text-gray-800">关于我们</p>
+                        <p class="text-sm text-gray-500">版本信息和团队介绍</p>
+                    </div>
+                </div>
+                <i class="fas fa-chevron-right text-gray-400"></i>
+            </div>
+        </div>
+    </div>
+
+    <!-- 启动码设置弹窗 -->
+    <div id="startupCodeModal" class="fixed inset-0 popup-overlay hidden z-50">
+        <div class="flex items-center justify-center min-h-screen px-4">
+            <div class="bg-white rounded-2xl p-6 max-w-sm w-full">
+                <div class="text-center mb-6">
+                    <i class="fas fa-key text-4xl text-blue-500 mb-4"></i>
+                    <h3 class="text-xl font-semibold text-gray-800 mb-2">启动码设置</h3>
+                    <p class="text-gray-600">设置6位数字启动密码</p>
+                </div>
+                
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">当前启动码</label>
+                        <input type="password" maxlength="6" placeholder="请输入当前启动码" 
+                               class="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-center text-2xl tracking-widest">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">新启动码</label>
+                        <input type="password" maxlength="6" placeholder="请输入新启动码" 
+                               class="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-center text-2xl tracking-widest">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">确认启动码</label>
+                        <input type="password" maxlength="6" placeholder="请再次输入新启动码" 
+                               class="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-center text-2xl tracking-widest">
+                    </div>
+                </div>
+                
+                <div class="flex space-x-3 mt-6">
+                    <button onclick="hideStartupCodeModal()" 
+                            class="flex-1 py-3 px-4 border border-gray-300 rounded-lg text-gray-700 font-medium">
+                        取消
+                    </button>
+                    <button onclick="saveStartupCode()" 
+                            class="flex-1 py-3 px-4 bg-blue-500 text-white rounded-lg font-medium">
+                        保存
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 消息订阅弹窗 -->
+    <div id="messageSubscriptionModal" class="fixed inset-0 popup-overlay hidden z-50">
+        <div class="flex items-end justify-center min-h-screen">
+            <div class="bg-white rounded-t-3xl p-6 w-full max-w-md">
+                <div class="mb-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-xl font-semibold text-gray-800">消息订阅</h3>
+                        <button onclick="hideMessageSubscriptionModal()" class="text-gray-400 hover:text-gray-600">
+                            <i class="fas fa-times text-xl"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="space-y-4">
+                    <!-- 订阅通知项 -->
+                    <div class="flex items-center justify-between py-3">
+                        <div class="flex-1">
+                            <p class="font-medium text-gray-800">卡片还款提醒</p>
+                        </div>
+                        <div class="flex items-center">
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" id="paymentReminderToggle" class="sr-only peer" onchange="togglePaymentReminder()">
+                                <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <!-- 续收操作区域 -->
+                    <div id="renewalSection" class="hidden bg-gray-50 rounded-lg p-4 mt-4">
+                        <div class="text-sm text-gray-600 mb-3">以下通知可多次点击续收提醒</div>
+                        
+                        <div class="space-y-3">
+                            <div class="flex items-center justify-between py-2">
+                                <div>
+                                    <p class="font-medium text-gray-800">账单还款提醒</p>
+                                    <p class="text-sm text-gray-500">临近还款日消息推送</p>
+                                </div>
+                                <div class="flex items-center">
+                                    <span class="text-sm text-red-500 mr-2">可提醒58次</span>
+                                    <button class="bg-red-500 text-white px-3 py-1 rounded-full text-sm font-medium hover:bg-red-600 transition-colors">
+                                        续收+1
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="flex space-x-3 mt-6">
+                    <button onclick="hideMessageSubscriptionModal()" 
+                            class="flex-1 py-3 px-4 border border-gray-300 rounded-lg text-gray-700 font-medium">
+                        取消
+                    </button>
+                    <button onclick="saveMessageSubscription()" 
+                            class="flex-1 py-3 px-4 bg-blue-500 text-white rounded-lg font-medium">
+                        确定
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 关于我们弹窗 -->
+    <div id="aboutModal" class="fixed inset-0 popup-overlay hidden z-50">
+        <div class="flex items-center justify-center min-h-screen px-4">
+            <div class="bg-white rounded-2xl p-6 max-w-sm w-full">
+                <div class="text-center">
+                    <div class="w-20 h-20 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl mx-auto mb-4 flex items-center justify-center">
+                        <i class="fas fa-credit-card text-3xl text-white"></i>
+                    </div>
+                    <h3 class="text-xl font-semibold text-gray-800 mb-2">卡包助手</h3>
+                    <p class="text-gray-600 mb-4">版本 1.0.0</p>
+                    
+                    <div class="text-left space-y-3 mb-6">
+                        <div class="flex items-center">
+                            <i class="fas fa-check-circle text-green-500 mr-3"></i>
+                            <span class="text-sm text-gray-700">智能还款提醒</span>
+                        </div>
+                        <div class="flex items-center">
+                            <i class="fas fa-check-circle text-green-500 mr-3"></i>
+                            <span class="text-sm text-gray-700">多卡片管理</span>
+                        </div>
+                        <div class="flex items-center">
+                            <i class="fas fa-check-circle text-green-500 mr-3"></i>
+                            <span class="text-sm text-gray-700">分期账单跟踪</span>
+                        </div>
+                        <div class="flex items-center">
+                            <i class="fas fa-check-circle text-green-500 mr-3"></i>
+                            <span class="text-sm text-gray-700">数据安全保护</span>
+                        </div>
+                    </div>
+                    
+                    <div class="text-center text-sm text-gray-500 mb-6">
+                        <p>© 2024 卡包助手团队</p>
+                        <p>专注于信用卡管理服务</p>
+                    </div>
+                    
+                    <button onclick="hideAboutModal()" 
+                            class="w-full py-3 px-4 bg-blue-500 text-white rounded-lg font-medium">
+                        确定
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 底部导航栏 -->
+    <div class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200">
+        <div class="flex">
+            <div class="flex-1 text-center py-2">
+                <div class="text-gray-400">
+                    <i class="fas fa-bell text-xl mb-1"></i>
+                    <p class="text-xs">提醒</p>
+                </div>
+            </div>
+            <div class="flex-1 text-center py-2">
+                <div class="text-gray-400">
+                    <i class="fas fa-wallet text-xl mb-1"></i>
+                    <p class="text-xs">卡包</p>
+                </div>
+            </div>
+            <div class="flex-1 text-center py-2">
+                <div class="text-gray-400">
+                    <i class="fas fa-calendar-alt text-xl mb-1"></i>
+                    <p class="text-xs">分期</p>
+                </div>
+            </div>
+            <div class="flex-1 text-center py-2">
+                <div class="text-blue-500">
+                    <i class="fas fa-user text-xl mb-1"></i>
+                    <p class="text-xs font-medium">我的</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function changeAvatar() {
+            alert('头像更换功能');
+        }
+
+        function editUsername() {
+            const newName = prompt('请输入新的用户名：', '张三');
+            if (newName && newName.trim()) {
+                document.querySelector('h2').textContent = newName.trim();
+            }
+        }
+
+        function editProfile() {
+            alert('编辑个人资料功能');
+        }
+
+        function showStartupCodeModal() {
+            document.getElementById('startupCodeModal').classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function hideStartupCodeModal() {
+            document.getElementById('startupCodeModal').classList.add('hidden');
+            document.body.style.overflow = 'auto';
+        }
+
+        function saveStartupCode() {
+            alert('启动码设置成功！');
+            hideStartupCodeModal();
+        }
+
+        function showBiometricModal() {
+            alert('生物识别设置功能');
+        }
+
+        function showMessageSubscription() {
+            document.getElementById('messageSubscriptionModal').classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function hideMessageSubscriptionModal() {
+            document.getElementById('messageSubscriptionModal').classList.add('hidden');
+            document.body.style.overflow = 'auto';
+        }
+
+        function togglePaymentReminder() {
+            const toggle = document.getElementById('paymentReminderToggle');
+            const renewalSection = document.getElementById('renewalSection');
+            
+            if (toggle.checked) {
+                // 调用小程序订阅通知接口
+                if (typeof wx !== 'undefined' && wx.requestSubscribeMessage) {
+                    wx.requestSubscribeMessage({
+                        tmplIds: ['your-template-id'], // 替换为实际的模板ID
+                        success: function(res) {
+                            console.log('订阅成功', res);
+                            renewalSection.classList.remove('hidden');
+                        },
+                        fail: function(err) {
+                            console.log('订阅失败', err);
+                            toggle.checked = false;
+                        }
+                    });
+                } else {
+                    // 非小程序环境，直接显示续收区域
+                    renewalSection.classList.remove('hidden');
+                }
+            } else {
+                renewalSection.classList.add('hidden');
+            }
+        }
+
+        function saveMessageSubscription() {
+            alert('消息订阅设置已保存！');
+            hideMessageSubscriptionModal();
+        }
+
+        function showThemeSettings() {
+            alert('主题设置功能');
+        }
+
+        function showDataBackup() {
+            alert('数据备份功能');
+        }
+
+        function showHelp() {
+            alert('使用帮助功能');
+        }
+
+        function showFeedback() {
+            alert('意见反馈功能');
+        }
+
+        function showAbout() {
+            document.getElementById('aboutModal').classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function hideAboutModal() {
+            document.getElementById('aboutModal').classList.add('hidden');
+            document.body.style.overflow = 'auto';
+        }
+
+        function logout() {
+            if (confirm('确定要退出登录吗？')) {
+                alert('已退出登录');
+            }
+        }
+
+        // 点击弹窗外部关闭
+        document.getElementById('startupCodeModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                hideStartupCodeModal();
+            }
+        });
+
+        document.getElementById('aboutModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                hideAboutModal();
+            }
+        });
+
+        document.getElementById('messageSubscriptionModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                hideMessageSubscriptionModal();
+            }
+        });
+
+        // 启动码输入框只允许数字
+        document.querySelectorAll('input[type="password"]').forEach(input => {
+            input.addEventListener('input', function(e) {
+                this.value = this.value.replace(/[^0-9]/g, '');
+            });
+        });
+    </script>
+</body>
+</html>

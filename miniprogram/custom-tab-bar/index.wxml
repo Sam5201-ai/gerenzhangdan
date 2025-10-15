@@ -1,0 +1,9 @@
+<view class="tab-bar {{hidden ? 'hidden' : ''}}">
+  <view wx:for="{{list}}" wx:key="index" class="tab-bar-item" bindtap="switchTab" data-path="{{item.pagePath}}" data-index="{{index}}">
+    <view class="tab-bar-icon">
+      <image wx:if="{{item.iconPath}}" class="tab-icon-img {{selected === index ? 'selected' : ''}}" src="{{selected === index ? item.selectedIconPath : item.iconPath}}" />
+      <text wx:else class="tab-icon {{selected === index ? 'selected' : ''}}">{{item.icon}}</text>
+    </view>
+    <view class="tab-bar-text {{selected === index ? 'selected' : ''}}">{{item.text}}</view>
+  </view>
+</view>

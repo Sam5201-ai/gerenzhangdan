@@ -1,0 +1,237 @@
+<!--我的页面-->
+<view class="container">
+  <!-- 自定义导航栏 -->
+  <view class="custom-navbar" style="padding-top: {{statusBarHeight}}px;">
+    <view class="navbar-content">
+      <view class="navbar-left">
+      </view>
+      <text class="navbar-title">我的</text>
+      <view class="navbar-right">
+      </view>
+    </view>
+  </view>
+  
+  <!-- 可滚动内容区域 -->
+  <view class="content-wrapper">
+    <!-- 个人信息头部 -->
+    <view class="profile-header" style="margin-top: {{statusBarHeight + 44}}px;">
+    <view class="profile-info">
+      <image class="avatar" src="{{userInfo.avatar || '/images/touxiang.png'}}" bindtap="changeAvatar" mode="aspectFill"></image>
+      <text class="username" bindtap="editUsername">{{userInfo.username || '用户'}}</text>
+    </view>
+  </view>
+  
+  <!-- 统计信息 -->
+  <view class="stats-card">
+    <view class="stats-grid">
+      <view class="stat-item">
+        <text class="stat-number">{{stats.cardCount || 0}}</text>
+        <text class="stat-label">信用卡数量</text>
+      </view>
+      <view class="stat-item">
+        <text class="stat-number">¥{{stats.totalLimit || 0}}</text>
+        <text class="stat-label">信用卡额度</text>
+      </view>
+      <view class="stat-item">
+        <text class="stat-number">{{stats.installmentCount || 0}}</text>
+        <text class="stat-label">分期账单</text>
+      </view>
+    </view>
+  </view>
+  
+  <!-- 功能菜单 -->
+  <view class="menu-section">
+    <view class="menu-card">
+      <view class="menu-item" bindtap="showMessageSubscriptionDisabled">
+        <view class="menu-item-left">
+          <view class="menu-icon">
+            <image class="menu-icon-img" src="/images/bell.svg" mode="aspectFit" />
+          </view>
+          <view class="menu-text">
+            <text class="menu-title">消息订阅</text>
+            <text class="menu-desc">管理推送通知</text>
+          </view>
+        </view>
+        <text class="menu-arrow">›</text>
+      </view>
+      <view class="menu-item" bindtap="showImportExportPopup">
+        <view class="menu-item-left">
+          <view class="menu-icon">
+            <image class="menu-icon-img" src="/images/data.svg" mode="aspectFit" />
+          </view>
+          <view class="menu-text">
+            <text class="menu-title">导入/导出数据</text>
+            <text class="menu-desc">备份和恢复数据</text>
+          </view>
+        </view>
+        <text class="menu-arrow">›</text>
+      </view>
+      <view class="menu-item" bindtap="showAbout">
+        <view class="menu-item-left">
+          <view class="menu-icon">
+            <image class="menu-icon-img" src="/images/info.svg" mode="aspectFit" />
+          </view>
+          <view class="menu-text">
+            <text class="menu-title">关于我们</text>
+            <text class="menu-desc">版本信息和团队介绍</text>
+          </view>
+        </view>
+        <text class="menu-arrow">›</text>
+      </view>
+    </view>
+  </view>
+  </view>
+</view>
+
+<!-- 用户名编辑弹窗 -->
+<view class="popup-overlay {{showUsernameEditModal ? 'show' : ''}}" bindtap="cancelUsernameEdit">
+  <view class="popup-content username-edit-popup" catchtap="stopPropagation">
+    <view class="popup-header">
+      <text class="popup-title">修改昵称</text>
+      <text class="popup-close" bindtap="cancelUsernameEdit">×</text>
+    </view>
+    <view class="popup-body">
+      <view class="input-group">
+        <input class="username-input" type="text" placeholder="请输入用户名" 
+               value="{{editingUsername}}" bindinput="onUsernameInput" maxlength="20" />
+      </view>
+    </view>
+    <view class="popup-footer">
+      <button class="btn-cancel" bindtap="cancelUsernameEdit">取消</button>
+      <button class="btn-confirm" bindtap="confirmUsernameEdit">确定</button>
+    </view>
+  </view>
+</view>
+
+<!-- 消息订阅弹窗 -->
+<view class="popup-overlay {{showSubscriptionPopup ? 'show' : ''}}" bindtap="hideSubscriptionPopup">
+  <view class="popup-content message-popup" catchtap="stopPropagation">
+    <view class="popup-header">
+      <text class="popup-title">消息订阅</text>
+      <text class="popup-close" bindtap="hideSubscriptionPopup">×</text>
+    </view>
+    <view class="popup-body">
+      <view class="subscription-item">
+        <view class="subscription-info">
+          <text class="subscription-title">卡片还款提醒</text>
+        </view>
+        <switch class="subscription-switch" checked="{{paymentReminderEnabled}}" bindchange="togglePaymentReminder"></switch>
+      </view>
+      <view class="renewal-section {{paymentReminderEnabled ? 'show' : ''}}">
+        <text class="renewal-tip">以下通知可多次点击续收提醒</text>
+        <view class="renewal-item">
+          <view class="renewal-info">
+            <text class="renewal-title">账单还款提醒</text>
+            <text class="renewal-desc">临近还款日消息推送</text>
+          </view>
+          <view class="renewal-action">
+            <text class="renewal-count">可提醒{{renewalNotifications.billReminder.count}}次</text>
+            <button class="renewal-btn" plain="true" bindtap="renewSubscription">续收+1</button>
+          </view>
+        </view>
+      </view>
+    </view>
+    <view class="popup-footer">
+      <button class="btn-cancel" bindtap="hideSubscriptionPopup">取消</button>
+      <button class="btn-confirm" bindtap="confirmSubscription">确定</button>
+    </view>
+  </view>
+</view>
+
+<!-- 关于我们弹窗 -->
+<view class="popup-overlay {{showAboutPopup ? 'show' : ''}}" bindtap="hideAboutPopup">
+  <view class="popup-content about-popup" catchtap="stopPropagation">
+    <view class="popup-header">
+      <text class="popup-title">关于我们</text>
+      <text class="popup-close" bindtap="hideAboutPopup">×</text>
+    </view>
+    <scroll-view class="about-scroll-content" scroll-y="true">
+      <view class="about-content">
+        <view class="about-header-info">
+          <view class="app-icon">
+            <text class="icon-text">💳</text>
+          </view>
+          <text class="app-name">卡包助手</text>
+          <text class="app-version">版本 1.0.0</text>
+        </view>
+        
+        <view class="about-section">
+          <text class="section-title">【我的初衷】</text>
+          <text class="section-content">信用卡多了，怕自己记不清账单！分期账单更让人头大？什么时候还？还剩多少？搞不清楚就容易花超支、付利息。做这个小助手，就是想把卡片和分期账单都整理清楚，一眼看清信用卡总额度是多少，账单什么时候还，到底还欠多少钱、有没有账单忘记漏还了，心里有数才不慌。</text>
+        </view>
+        
+        <view class="about-section">
+          <text class="section-title">【数据安全】</text>
+          <text class="section-content">数据纯本地存储，只在自己手机里，安全放心！ 信用卡号、账单金额这些敏感信息，绝不存到网上！所有数据都只保存在自己的手机本地，谁也拿不到。安全第一，用着踏实。</text>
+        </view>
+        
+        <view class="about-section">
+          <text class="section-title">【开发者结语】</text>
+          <text class="section-content">信用卡就是一个坑，祝各位早日脱坑上岸！</text>
+        </view>
+      </view>
+    </scroll-view>
+  </view>
+</view>
+
+<!-- 导入/导出数据弹窗 -->
+<view class="popup-overlay {{showImportExportPopup ? 'show' : ''}}" bindtap="hideImportExportPopup">
+  <view class="popup-content import-export-popup" catchtap="stopPropagation">
+    <view class="popup-header">
+      <text class="popup-title">导入/导出数据</text>
+      <text class="popup-close" bindtap="hideImportExportPopup">×</text>
+    </view>
+    <view class="popup-body">
+      <view class="data-action-item" bindtap="showExportOptions">
+        <view class="action-icon export-icon">📤</view>
+        <view class="action-info">
+          <text class="action-title">导出数据</text>
+          <text class="action-desc">将数据导出为文件备份</text>
+        </view>
+        <text class="menu-arrow">›</text>
+      </view>
+      <view class="data-action-item" bindtap="handleImportData">
+        <view class="action-icon import-icon">📥</view>
+        <view class="action-info">
+          <text class="action-title">导入数据</text>
+          <text class="action-desc">从备份文件恢复数据</text>
+        </view>
+        <text class="menu-arrow">›</text>
+      </view>
+    </view>
+  </view>
+</view>
+
+<!-- 导出数据选择弹窗 -->
+<view class="popup-overlay {{showExportOptionsPopup ? 'show' : ''}}" bindtap="hideExportOptionsPopup">
+  <view class="popup-content export-options-popup" catchtap="stopPropagation">
+    <view class="popup-header">
+      <text class="popup-title">选择导出内容</text>
+      <text class="popup-close" bindtap="hideExportOptionsPopup">×</text>
+    </view>
+    <view class="popup-body">
+      <view class="export-option-item" bindtap="toggleExportCard">
+        <view class="option-left">
+          <text class="option-icon">💳</text>
+          <text class="option-label">卡包管理数据</text>
+        </view>
+        <view class="checkbox {{exportOptions.card ? 'checked' : ''}}">
+          <text wx:if="{{exportOptions.card}}" class="check-mark">✓</text>
+        </view>
+      </view>
+      <view class="export-option-item" bindtap="toggleExportBill">
+        <view class="option-left">
+          <text class="option-icon">📋</text>
+          <text class="option-label">分期账单数据</text>
+        </view>
+        <view class="checkbox {{exportOptions.bill ? 'checked' : ''}}">
+          <text wx:if="{{exportOptions.bill}}" class="check-mark">✓</text>
+        </view>
+      </view>
+    </view>
+    <view class="popup-footer">
+      <button class="btn-cancel" bindtap="hideExportOptionsPopup">取消</button>
+      <button class="btn-confirm" bindtap="confirmExportData">确定导出</button>
+    </view>
+  </view>
+</view>

@@ -1,0 +1,147 @@
+<!--index.wxml-->
+<view class="container">
+  <!-- 自定义导航栏 -->
+  <view class="custom-navbar" style="padding-top: {{statusBarHeight}}px;">
+    <view class="navbar-content">
+      <view class="navbar-left">
+      </view>
+      <text class="navbar-title">我的卡包</text>
+      <view class="navbar-right">
+      </view>
+    </view>
+  </view>
+  <!-- 卡片列表 -->
+  <scroll-view class="cards-container" scroll-y="true" show-scrollbar="{{false}}" style="padding-top: {{statusBarHeight + 44 + 8}}px;">
+    <!-- 空状态提示 -->
+    <view wx:if="{{cardList.length === 0}}" class="empty-state">
+      <view class="empty-icon">💳</view>
+      <text class="empty-title">暂无信用卡</text>
+      <text class="empty-desc">点击右下角的 + 按钮添加您的第一张信用卡</text>
+    </view>
+    
+    <!-- 信用卡列表 -->
+    <view wx:for="{{cardList}}" wx:key="id" class="credit-card card-gradient-{{item.style}}" bindtap="editCard" bindlongpress="deleteCard" data-id="{{item.id}}">
+      <view class="card-header">
+        <view class="card-info">
+          <text class="card-name">{{item.name}}</text>
+          <text class="card-bank">最近还款时间</text>
+        </view>
+      </view>
+      <view class="card-number">
+        <text class="card-number-text">{{item.maskedCardNumber}}</text>
+      </view>
+      <view class="card-footer">
+        <view class="card-limit">
+          <text class="card-label">额度</text>
+          <text class="card-value">¥{{item.limit}}</text>
+        </view>
+        <view class="card-due">
+          <text class="card-label">还款日</text>
+          <text class="card-value">每月{{item.dueDate}}日</text>
+        </view>
+      </view>
+    </view>
+
+
+  </scroll-view>
+
+  <!-- 浮动添加按钮 -->
+  <view class="floating-add-btn" bindtap="showAddCardPopup">
+    <text class="floating-add-icon">+</text>
+  </view>
+
+  <!-- 添加/编辑卡片弹窗 -->
+  <view wx:if="{{showCardPopup}}" class="popup-overlay" bindtap="hideCardPopup">
+    <view class="popup-bottom" animation="{{popupAnimation}}" catchtap="stopPropagation">
+      <!-- 固定标题栏 -->
+      <view class="popup-header-fixed">
+        <text class="popup-title">{{popupTitle}}</text>
+        <text class="popup-close" bindtap="hideCardPopup">✕</text>
+      </view>
+      
+      <!-- 可滚动内容区域 -->
+      <scroll-view class="popup-scroll-content" scroll-y="true" show-scrollbar="{{false}}">
+        <view class="form-container">
+        <!-- 信用卡名称 -->
+        <view class="form-item">
+          <text class="form-label">信用卡名称</text>
+          <input class="form-input" placeholder="请输入信用卡名称" maxlength="20" value="{{formData.name}}" bindinput="onInputName" />
+        </view>
+
+        <!-- 信用卡号 -->
+        <view class="form-item">
+          <text class="form-label">信用卡号</text>
+          <input class="form-input" placeholder="请输入信用卡号" maxlength="25" value="{{formData.cardNumber}}" bindinput="onInputCardNumber" />
+        </view>
+
+        <!-- 额度 -->
+        <view class="form-item">
+          <text class="form-label">额度</text>
+          <input class="form-input" placeholder="请输入信用卡额度" type="number" value="{{formData.limit}}" bindinput="onInputLimit" />
+        </view>
+
+        <!-- 还款日期 -->
+        <view class="form-item">
+          <text class="form-label">还款日期</text>
+          <view class="form-input date-selector" bindtap="showDatePicker">
+            <text class="{{formData.dueDate ? '' : 'placeholder'}}">{{formData.dueDate ? formData.dueDate + '日' : '请选择还款日期（1-31）'}}</text>
+            <text class="selector-arrow">▼</text>
+          </view>
+        </view>
+
+        <!-- 卡片背景样式 -->
+        <view class="form-item">
+          <text class="form-label">卡片背景样式</text>
+          <view class="style-grid">
+            <view wx:for="{{styleOptions}}" wx:key="*this" class="style-item card-gradient-{{item}} {{selectedStyle === item ? 'selected' : ''}}" bindtap="selectCardStyle" data-style="{{item}}"></view>
+          </view>
+        </view>
+
+        <!-- 启用还款提醒 -->
+        <view class="form-item">
+          <view class="reminder-toggle" bindtap="toggleReminder">
+            <text class="form-label">启用还款提醒</text>
+            <view class="toggle-switch {{reminderEnabled ? 'active' : ''}}">
+              <view class="toggle-dot"></view>
+            </view>
+          </view>
+          <view class="reminder-options {{reminderEnabled ? '' : 'hidden'}}">
+            <text class="reminder-label">提前几天提醒：</text>
+            <view class="reminder-days">
+              <view wx:for="{{reminderDaysOptions}}" wx:key="*this" class="day-option {{selectedReminderDays === item ? 'selected' : ''}}" bindtap="selectReminderDays" data-days="{{item}}">
+                <text>{{item}}天</text>
+              </view>
+            </view>
+          </view>
+        </view>
+
+          <!-- 操作按钮 -->
+          <view class="form-buttons">
+            <button class="btn-cancel" bindtap="hideCardPopup">取消</button>
+            <button class="btn-save" bindtap="saveCard">保存</button>
+          </view>
+        </view>
+      </scroll-view>
+    </view>
+  </view>
+
+  <!-- 日期选择弹窗 -->
+  <view class="date-picker-overlay {{showDatePicker ? 'show' : ''}}" bindtap="hideDatePicker">
+    <view class="date-picker-popup" catchtap="">
+      <view class="date-picker-header">
+        <text class="date-picker-title">选择还款日期</text>
+        <text class="date-picker-close" bindtap="hideDatePicker">✕</text>
+      </view>
+      <scroll-view class="date-picker-content" scroll-y="true">
+        <view class="date-options">
+          <view wx:for="{{dateOptions}}" wx:key="*this" class="date-option {{formData.dueDate == item ? 'selected' : ''}}" bindtap="selectDate" data-date="{{item}}">
+            <text>{{item}}日</text>
+            <text class="check-icon {{formData.dueDate == item ? 'show' : ''}}">✓</text>
+          </view>
+        </view>
+      </scroll-view>
+    </view>
+  </view>
+
+
+</view>

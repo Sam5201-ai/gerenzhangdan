@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>信用卡账单管理小程序 - 原型设计</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .phone-frame {
+            width: 430px;
+            height: 932px;
+            border: 8px solid #1f2937;
+            border-radius: 40px;
+            background: #000;
+            padding: 8px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+        }
+        .phone-screen {
+            width: 100%;
+            height: 100%;
+            border-radius: 32px;
+            overflow: hidden;
+            background: #fff;
+        }
+        iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+            overflow: hidden;
+        }
+        
+        /* 确保iframe内的固定定位正常工作 */
+        .phone-screen {
+            position: relative;
+            overflow: hidden;
+        }
+        
+        /* 尝试隐藏iframe滚动条 */
+        iframe::-webkit-scrollbar {
+            display: none !important;
+            width: 0 !important;
+        }
+    </style>
+    <script>
+        // 动态向iframe内部注入CSS来隐藏滚动条
+        function hideIframeScrollbars() {
+            const iframes = document.querySelectorAll('iframe');
+            
+            iframes.forEach(iframe => {
+                iframe.onload = function() {
+                    try {
+                        const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+                        
+                        // 创建样式元素
+                        const style = iframeDoc.createElement('style');
+                        style.textContent = `
+                            * {
+                                -ms-overflow-style: none !important;
+                                scrollbar-width: none !important;
+                            }
+                            
+                            *::-webkit-scrollbar {
+                                display: none !important;
+                                width: 0 !important;
+                                height: 0 !important;
+                                background: transparent !important;
+                            }
+                            
+                            body::-webkit-scrollbar {
+                                display: none !important;
+                                width: 0 !important;
+                            }
+                            
+                            html::-webkit-scrollbar {
+                                display: none !important;
+                                width: 0 !important;
+                            }
+                            
+                            body {
+                                overflow-y: scroll !important;
+                                overflow-x: hidden !important;
+                                -ms-overflow-style: none !important;
+                                scrollbar-width: none !important;
+                            }
+                            
+                            html {
+                                -ms-overflow-style: none !important;
+                                scrollbar-width: none !important;
+                            }
+                        `;
+                        
+                        // 将样式添加到iframe的head中
+                        iframeDoc.head.appendChild(style);
+                        
+                        // 同时设置body的内联样式作为备用
+                        if (iframeDoc.body) {
+                            iframeDoc.body.style.cssText += 'overflow-y: scroll !important; overflow-x: hidden !important; -ms-overflow-style: none !important; scrollbar-width: none !important;';
+                        }
+                    } catch (e) {
+                        console.log('无法访问iframe内容，可能是跨域限制');
+                    }
+                };
+            });
+        }
+        
+        // 页面加载完成后执行
+        document.addEventListener('DOMContentLoaded', hideIframeScrollbars);
+    </script>
+</head>
+<body class="bg-gray-100 min-h-screen py-8">
+    <div class="container mx-auto px-4">
+        <h1 class="text-3xl font-bold text-center mb-8 text-gray-800">
+            <i class="fas fa-credit-card mr-3 text-blue-600"></i>
+            信用卡账单管理小程序原型设计
+        </h1>
+        
+        <div class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-8 justify-items-center">
+            <!-- 提醒页面 -->
+            <div class="text-center">
+                <h2 class="text-xl font-semibold mb-4 text-gray-700">
+                    <i class="fas fa-bell mr-2 text-orange-500"></i>
+                    提醒页面
+                </h2>
+                <div class="phone-frame">
+                    <div class="phone-screen">
+                        <iframe src="reminders.html"></iframe>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 卡包页面 -->
+            <div class="text-center">
+                <h2 class="text-xl font-semibold mb-4 text-gray-700">
+                    <i class="fas fa-wallet mr-2 text-green-500"></i>
+                    卡包页面
+                </h2>
+                <div class="phone-frame">
+                    <div class="phone-screen">
+                        <iframe src="cards.html"></iframe>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 分期页面 -->
+            <div class="text-center">
+                <h2 class="text-xl font-semibold mb-4 text-gray-700">
+                    <i class="fas fa-calendar-alt mr-2 text-purple-500"></i>
+                    分期页面
+                </h2>
+                <div class="phone-frame">
+                    <div class="phone-screen">
+                        <iframe src="installments.html"></iframe>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 我的页面 -->
+            <div class="text-center">
+                <h2 class="text-xl font-semibold mb-4 text-gray-700">
+                    <i class="fas fa-user mr-2 text-blue-500"></i>
+                    我的页面
+                </h2>
+                <div class="phone-frame">
+                    <div class="phone-screen">
+                        <iframe src="profile.html"></iframe>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="mt-12 text-center">
+            <p class="text-gray-600 mb-4">设计说明：</p>
+            <div class="bg-white rounded-lg shadow-md p-6 max-w-4xl mx-auto">
+                <ul class="text-left text-gray-700 space-y-2">
+                    <li><i class="fas fa-check text-green-500 mr-2"></i>采用iPhone 16 Pro Max尺寸设计 (430x932px)</li>
+                    <li><i class="fas fa-check text-green-500 mr-2"></i>使用Tailwind CSS框架确保现代化UI设计</li>
+                    <li><i class="fas fa-check text-green-500 mr-2"></i>集成Font Awesome图标库提升视觉效果</li>
+                    <li><i class="fas fa-check text-green-500 mr-2"></i>模拟真实手机显示效果，包含圆角边框</li>
+                    <li><i class="fas fa-check text-green-500 mr-2"></i>符合微信小程序设计规范</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,224 @@
+/**app.wxss**/
+.container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  box-sizing: border-box;
+} 
+
+button {
+  background: initial;
+}
+
+button:focus{
+  outline: 0;
+}
+
+button::after{
+  border: none;
+}
+
+
+page {
+  background: #f6f6f6;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+  overflow-x: hidden;
+}
+
+/* 全局隐藏滚动条 */
+::-webkit-scrollbar {
+  width: 0 !important;
+  height: 0 !important;
+  display: none !important;
+}
+
+::-webkit-scrollbar-track {
+  display: none !important;
+}
+
+::-webkit-scrollbar-thumb {
+  display: none !important;
+}
+
+::-webkit-scrollbar-corner {
+  display: none !important;
+}
+
+
+
+/* 字体图标样式 */
+@font-face {
+  font-family: 'iconfont';
+  src: url('data:font/woff2;base64,') format('woff2');
+}
+
+.iconfont {
+  font-family: "iconfont", "Arial Unicode MS", sans-serif !important;
+  font-size: 16px;
+  font-style: normal;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  display: inline-block;
+  text-rendering: optimizeLegibility;
+}
+
+/* 卡包图标 */
+.icon-card:before {
+  content: "💳";
+}
+
+/* 分期图标 */
+.icon-calendar:before {
+  content: "📅";
+}
+
+/* 我的图标 */
+.icon-user:before {
+  content: "👤";
+}
+
+/* 表单字段图标 - 使用美观符号 */
+.icon-credit-card:before {
+  content: "◉";
+}
+
+.icon-money:before {
+  content: "¥";
+}
+
+.icon-list:before {
+  content: "≡";
+}
+
+.icon-calculator:before {
+  content: "∑";
+}
+
+.icon-calendar:before {
+  content: "◐";
+}
+
+.icon-check-circle:before {
+  content: "✓";
+}
+
+.icon-hourglass:before {
+  content: "◔";
+}
+
+.icon-money-check:before {
+  content: "◈";
+}
+
+.icon-coins:before {
+  content: "●";
+}
+
+.icon-clock:before {
+  content: "◷";
+}
+
+.icon-undo:before {
+  content: "↶";
+}
+
+/* 铃铛图标 */
+.nav-icon-bell {
+  position: relative;
+  width: 18px;
+  height: 18px;
+  border: 2px solid currentColor;
+  border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
+}
+
+.nav-icon-bell::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 6px;
+  height: 3px;
+  background: currentColor;
+  border-radius: 0 0 50% 50%;
+}
+
+.nav-icon-card {
+  position: relative;
+  width: 18px;
+  height: 12px;
+  border: 2px solid currentColor;
+  border-radius: 2px;
+}
+
+.nav-icon-card::before {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  right: 2px;
+  height: 1px;
+  background: currentColor;
+}
+
+.nav-icon-card::after {
+  content: '';
+  position: absolute;
+  top: 5px;
+  left: 2px;
+  width: 7px;
+  height: 1px;
+  background: currentColor;
+}
+
+.nav-icon-chart {
+  position: relative;
+  width: 18px;
+  height: 14px;
+}
+
+.nav-icon-chart::before {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 2px;
+  width: 2px;
+  height: 8px;
+  background: currentColor;
+  border-radius: 1px;
+  box-shadow: 4px 2px 0 currentColor, 8px -2px 0 currentColor;
+}
+
+.nav-icon-user {
+  position: relative;
+  width: 18px;
+  height: 18px;
+}
+
+.nav-icon-user::before {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 6px;
+  height: 6px;
+  background: currentColor;
+  border-radius: 50%;
+}
+
+.nav-icon-user::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 12px;
+  height: 6px;
+  background: currentColor;
+  border-radius: 6px 6px 0 0;
+}

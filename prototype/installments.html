@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>分期 - 信用卡账单管理</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        html, body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            height: 100%;
+            overflow-x: hidden;
+        }
+        body {
+            position: relative;
+        }
+        .installment-card {
+            transition: all 0.3s ease;
+        }
+        .installment-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+        }
+        .popup-overlay {
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(4px);
+        }
+        .popup-content {
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        .progress-bar {
+            background: linear-gradient(90deg, #10b981 0%, #34d399 100%);
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <!-- 状态栏 -->
+    <div class="fixed top-0 left-0 right-0 bg-white px-4 py-2 flex justify-between items-center text-sm z-50" style="height: 44px;">
+        <span class="font-medium">9:41</span>
+        <div class="flex items-center space-x-1">
+            <i class="fas fa-signal text-xs"></i>
+            <i class="fas fa-wifi text-xs"></i>
+            <i class="fas fa-battery-three-quarters text-xs"></i>
+        </div>
+    </div>
+
+    <!-- 顶部导航 -->
+    <div class="fixed left-0 right-0 bg-white shadow-sm px-4 py-3 z-40" style="top: 44px;">
+        <div class="flex items-center justify-between">
+            <button onclick="showStatsPopup()" class="text-gray-600 hover:text-purple-500 transition-colors">
+                <i class="fas fa-chart-bar text-lg"></i>
+            </button>
+            <h1 class="text-lg font-semibold text-gray-800">
+                <i class="fas fa-calendar-alt mr-2 text-purple-500"></i>
+                分期账单
+            </h1>
+            <div class="w-6"></div> <!-- 占位元素保持居中 -->
+        </div>
+    </div>
+
+    <!-- 分期列表 -->
+    <div class="px-4 pb-20" style="margin-top: 120px;">
+        <!-- 分期卡片1 -->
+        <div class="installment-card bg-white rounded-xl shadow-sm mb-4 p-5 cursor-pointer" onclick="editInstallment(1)">
+            <div class="flex justify-between items-start mb-4">
+                <div class="flex-1">
+                    <h3 class="text-lg font-semibold text-gray-800 mb-1">招商银行信用卡</h3>
+                    <p class="text-sm text-gray-500">**** **** **** 8888</p>
+                </div>
+                <div class="text-right">
+                    <p class="text-2xl font-bold text-blue-600">¥12,000</p>
+                    <p class="text-xs text-gray-500">账单总金额</p>
+                </div>
+            </div>
+            
+            <!-- 进度条 -->
+            <div class="mb-4">
+                <div class="flex justify-between text-sm text-gray-600 mb-2">
+                    <span>还款进度</span>
+                    <span>6/12期</span>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-2">
+                    <div class="progress-bar h-2 rounded-full" style="width: 50%"></div>
+                </div>
+            </div>
+            
+            <!-- 详细信息 -->
+            <div class="grid grid-cols-2 gap-4 mb-4">
+                <div class="text-center p-3 bg-gray-50 rounded-lg">
+                    <p class="text-lg font-semibold text-gray-800">¥1,000</p>
+                    <p class="text-xs text-gray-500">每期还款</p>
+                </div>
+                <div class="text-center p-3 bg-blue-50 rounded-lg">
+                    <p class="text-lg font-semibold text-blue-600">每月5日</p>
+                    <p class="text-xs text-gray-500">每期还款时间</p>
+                </div>
+            </div>
+            
+
+            
+            <div class="grid grid-cols-2 gap-4 mb-4">
+                <div class="text-center p-3 bg-green-50 rounded-lg">
+                    <p class="text-lg font-semibold text-green-600">¥6,000</p>
+                    <p class="text-xs text-gray-500">已还金额</p>
+                </div>
+                <div class="text-center p-3 bg-red-50 rounded-lg">
+                    <p class="text-lg font-semibold text-red-600">¥6,000</p>
+                    <p class="text-xs text-gray-500">剩余金额</p>
+                </div>
+            </div>
+            
+            <div class="text-center mb-4">
+                <p class="text-sm text-gray-600">
+                    <i class="fas fa-clock mr-1"></i>
+                    最近还款：2024年1月5日
+                </p>
+            </div>
+            
+            <!-- 操作按钮 -->
+            <div class="flex space-x-3">
+                <button onclick="payInstallment(1, event)" 
+                        class="flex-1 bg-green-500 text-white py-3 px-4 rounded-lg font-medium hover:bg-green-600 transition-colors">
+                    <i class="fas fa-credit-card mr-2"></i>
+                    按期还款
+                </button>
+                <button onclick="cancelPayment(1, event)" 
+                        class="flex-1 bg-gray-500 text-white py-3 px-4 rounded-lg font-medium hover:bg-gray-600 transition-colors">
+                    <i class="fas fa-undo mr-2"></i>
+                    撤销
+                </button>
+            </div>
+        </div>
+
+        <!-- 分期卡片2 -->
+        <div class="installment-card bg-white rounded-xl shadow-sm mb-4 p-5 cursor-pointer" onclick="editInstallment(2)">
+            <div class="flex justify-between items-start mb-4">
+                <div class="flex-1">
+                    <h3 class="text-lg font-semibold text-gray-800 mb-1">工商银行信用卡</h3>
+                    <p class="text-sm text-gray-500">**** **** **** 6666</p>
+                </div>
+                <div class="text-right">
+                    <p class="text-2xl font-bold text-blue-600">¥8,400</p>
+                    <p class="text-xs text-gray-500">账单总金额</p>
+                </div>
+            </div>
+            
+            <!-- 进度条 -->
+            <div class="mb-4">
+                <div class="flex justify-between text-sm text-gray-600 mb-2">
+                    <span>还款进度</span>
+                    <span>3/6期</span>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-2">
+                    <div class="progress-bar h-2 rounded-full" style="width: 50%"></div>
+                </div>
+            </div>
+            
+            <!-- 详细信息 -->
+            <div class="grid grid-cols-2 gap-4 mb-4">
+                <div class="text-center p-3 bg-gray-50 rounded-lg">
+                    <p class="text-lg font-semibold text-gray-800">¥1,400</p>
+                    <p class="text-xs text-gray-500">每期还款</p>
+                </div>
+                <div class="text-center p-3 bg-blue-50 rounded-lg">
+                    <p class="text-lg font-semibold text-blue-600">每月8日</p>
+                    <p class="text-xs text-gray-500">每期还款时间</p>
+                </div>
+            </div>
+            
+
+            
+            <div class="grid grid-cols-2 gap-4 mb-4">
+                <div class="text-center p-3 bg-green-50 rounded-lg">
+                    <p class="text-lg font-semibold text-green-600">¥4,200</p>
+                    <p class="text-xs text-gray-500">已还金额</p>
+                </div>
+                <div class="text-center p-3 bg-red-50 rounded-lg">
+                    <p class="text-lg font-semibold text-red-600">¥4,200</p>
+                    <p class="text-xs text-gray-500">剩余金额</p>
+                </div>
+            </div>
+            
+            <div class="text-center mb-4">
+                <p class="text-sm text-gray-600">
+                    <i class="fas fa-clock mr-1"></i>
+                    最近还款：2024年1月8日
+                </p>
+            </div>
+            
+            <!-- 操作按钮 -->
+            <div class="flex space-x-3">
+                <button onclick="payInstallment(2, event)" 
+                        class="flex-1 bg-green-500 text-white py-3 px-4 rounded-lg font-medium hover:bg-green-600 transition-colors">
+                    <i class="fas fa-credit-card mr-2"></i>
+                    按期还款
+                </button>
+                <button onclick="cancelPayment(2, event)" 
+                        class="flex-1 bg-gray-500 text-white py-3 px-4 rounded-lg font-medium hover:bg-gray-600 transition-colors">
+                    <i class="fas fa-undo mr-2"></i>
+                    撤销
+                </button>
+            </div>
+        </div>
+
+        <!-- 已完成的分期 -->
+        <div class="installment-card bg-white rounded-xl shadow-sm mb-4 p-5 opacity-75">
+            <div class="flex justify-between items-start mb-4">
+                <div class="flex-1">
+                    <h3 class="text-lg font-semibold text-gray-800 mb-1">建设银行信用卡</h3>
+                    <p class="text-sm text-gray-500">**** **** **** 9999</p>
+                </div>
+                <div class="text-right">
+                    <p class="text-2xl font-bold text-green-600">¥5,000</p>
+                    <p class="text-xs text-gray-500">账单总金额</p>
+                </div>
+            </div>
+            
+            <!-- 进度条 -->
+            <div class="mb-4">
+                <div class="flex justify-between text-sm text-gray-600 mb-2">
+                    <span>还款进度</span>
+                    <span>5/5期</span>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-2">
+                    <div class="progress-bar h-2 rounded-full" style="width: 100%"></div>
+                </div>
+            </div>
+            
+            <div class="text-center">
+                <div class="inline-flex items-center px-4 py-2 bg-green-100 text-green-800 rounded-full">
+                    <i class="fas fa-check-circle mr-2"></i>
+                    <span class="font-medium">分期已完成</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 右下角浮动添加按钮 -->
+    <div class="fixed bottom-20 right-4 z-50">
+        <button onclick="showAddInstallmentPopup()" 
+                class="w-14 h-14 bg-blue-500 text-white rounded-full shadow-lg hover:bg-blue-600 transition-all hover:scale-110 flex items-center justify-center">
+            <i class="fas fa-plus text-xl"></i>
+        </button>
+    </div>
+
+    <!-- 添加分期弹窗 -->
+    <div id="installmentPopup" class="fixed inset-0 popup-overlay hidden z-50">
+        <div class="flex items-end justify-center min-h-screen">
+            <div class="bg-white rounded-t-3xl w-full popup-content">
+                <!-- 固定标题栏 -->
+                <div class="sticky top-0 bg-white rounded-t-3xl p-6 border-b border-gray-100 z-10">
+                    <div class="flex justify-between items-center">
+                        <h2 id="installmentPopupTitle" class="text-xl font-semibold text-gray-800">添加卡片分期</h2>
+                        <button onclick="hideInstallmentPopup()" class="text-gray-400 hover:text-gray-600">
+                            <i class="fas fa-times text-xl"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 可滚动表单内容 -->
+                <div class="p-6 pt-0">
+                    <!-- 表单内容 -->
+                    <form class="space-y-4">
+                        <!-- 卡片选择 -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                <i class="fas fa-credit-card mr-2"></i>
+                                选择卡片
+                            </label>
+                            <select class="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                <option value="">请选择信用卡</option>
+                                <option value="1">招商银行信用卡 (**** 8888)</option>
+                                <option value="2">工商银行信用卡 (**** 6666)</option>
+                                <option value="3">建设银行信用卡 (**** 9999)</option>
+                            </select>
+                        </div>
+
+                        <!-- 账单总金额 -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                <i class="fas fa-money-bill mr-2"></i>
+                                账单总金额
+                            </label>
+                            <input type="number" id="totalAmount" min="1" max="99999999" step="0.01" placeholder="请输入账单总金额" 
+                                   class="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                   oninput="calculateInstallment()">
+                        </div>
+
+                        <!-- 分期笔数 -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                <i class="fas fa-list-ol mr-2"></i>
+                                分期笔数
+                            </label>
+                            <input type="number" id="installmentCount" min="1" max="999" placeholder="请输入分期笔数" 
+                                   class="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                   oninput="calculateInstallment()">
+                        </div>
+
+                        <!-- 每期还款 -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                <i class="fas fa-calculator mr-2"></i>
+                                每期还款
+                            </label>
+                            <input type="number" id="monthlyPayment" min="1" max="99999999" step="0.01" placeholder="每期还款金额" 
+                                   class="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+
+                        <!-- 还款日期 -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                <i class="fas fa-calendar mr-2"></i>
+                                还款日期
+                            </label>
+                            <input type="number" min="1" max="31" placeholder="请输入还款日期（1-31）" value="15"
+                                   class="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+
+                        <!-- 已还分期数 -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                <i class="fas fa-check-circle mr-2"></i>
+                                已还分期数
+                            </label>
+                            <input type="number" id="paidCount" min="0" max="999" placeholder="请输入已还分期数" value="0"
+                                   class="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                   oninput="calculateRemaining()">
+                        </div>
+
+                        <!-- 剩余分期数 -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                <i class="fas fa-hourglass-half mr-2"></i>
+                                剩余分期数
+                            </label>
+                            <input type="number" id="remainingCount" readonly 
+                                   class="w-full px-4 py-3 border border-gray-200 rounded-lg bg-gray-50 text-gray-600">
+                        </div>
+
+                        <!-- 已还款金额 -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                <i class="fas fa-money-check mr-2"></i>
+                                已还款金额
+                            </label>
+                            <input type="number" id="paidAmount" min="0" max="99999999" step="0.01" placeholder="请输入已还款金额" value="0"
+                                   class="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                   oninput="calculateRemainingAmount()">
+                        </div>
+
+                        <!-- 剩余还款金额 -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                <i class="fas fa-coins mr-2"></i>
+                                剩余还款金额
+                            </label>
+                            <input type="number" id="remainingAmount" readonly 
+                                   class="w-full px-4 py-3 border border-gray-200 rounded-lg bg-gray-50 text-gray-600">
+                        </div>
+
+                        <!-- 最近还款时间 -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                <i class="fas fa-clock mr-2"></i>
+                                最近还款时间
+                            </label>
+                            <input type="date" id="lastPaymentDate" 
+                                   class="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+
+                        <!-- 操作按钮 -->
+                        <div class="flex space-x-3 pt-4">
+                            <button type="button" onclick="hideInstallmentPopup()" 
+                                    class="flex-1 py-3 px-4 border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50">
+                                取消
+                            </button>
+                            <button type="submit" 
+                                    class="flex-1 py-3 px-4 bg-blue-500 text-white rounded-lg font-medium hover:bg-blue-600">
+                                保存
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 分期统计弹窗 -->
+    <div id="statsPopup" class="fixed inset-0 popup-overlay hidden z-50">
+        <div class="flex items-end justify-center min-h-screen">
+            <div class="bg-white rounded-t-2xl p-6 w-full max-w-md">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-xl font-semibold text-gray-800">分期统计</h2>
+                    <button onclick="hideStatsPopup()" class="text-gray-400 hover:text-gray-600">
+                        <i class="fas fa-times text-xl"></i>
+                    </button>
+                </div>
+                
+                <!-- 统计内容 -->
+                <div class="space-y-4">
+                    <!-- 分期总账单数 -->
+                    <div class="flex justify-between items-center py-2 bg-gray-50 px-3 rounded-lg">
+                        <span class="text-gray-800">分期总账单数：</span>
+                        <span class="font-semibold text-gray-800">8个</span>
+                    </div>
+                    
+                    <!-- 已还清账单数 -->
+                    <div class="flex justify-between items-center py-2 bg-green-50 px-3 rounded-lg">
+                        <span class="text-green-600">已还清账单数：</span>
+                        <span class="font-semibold text-green-600">0个</span>
+                    </div>
+                    
+                    <!-- 未还清账单数 -->
+                    <div class="flex justify-between items-center py-2 bg-yellow-50 px-3 rounded-lg">
+                        <span class="text-orange-600">未还清账单数：</span>
+                        <span class="font-semibold text-orange-600">8个</span>
+                    </div>
+                    
+                    <!-- 每期合计还款金额 -->
+                    <div class="flex justify-between items-center py-2 bg-blue-50 px-3 rounded-lg">
+                        <span class="text-blue-600">每期合计还款金额：</span>
+                        <span class="font-semibold text-blue-600">¥10920.20</span>
+                    </div>
+                    
+                    <!-- 累计账单总金额 -->
+                    <div class="flex justify-between items-center py-2 bg-purple-50 px-3 rounded-lg">
+                        <span class="text-purple-600">累计账单总金额：</span>
+                        <span class="font-semibold text-purple-600">¥645297.92</span>
+                    </div>
+                    
+                    <!-- 累计已还款金额 -->
+                    <div class="flex justify-between items-center py-2 bg-green-50 px-3 rounded-lg">
+                        <span class="text-green-600">累计已还款金额：</span>
+                        <span class="font-semibold text-green-600">¥138600.88</span>
+                    </div>
+                    
+                    <!-- 累计剩余还款金额 -->
+                    <div class="flex justify-between items-center py-2 bg-red-50 px-3 rounded-lg">
+                        <span class="text-red-600">累计剩余还款金额：</span>
+                        <span class="font-semibold text-red-600">¥506697.04</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 确认弹窗 -->
+    <div id="confirmModal" class="fixed inset-0 popup-overlay hidden z-50">
+        <div class="flex items-end justify-center min-h-screen">
+            <div class="bg-white rounded-t-3xl w-full popup-content">
+                <div class="p-6">
+                    <div class="text-center">
+                        <i id="confirmIcon" class="fas fa-question-circle text-4xl text-blue-500 mb-4"></i>
+                        <h3 id="confirmTitle" class="text-lg font-semibold text-gray-800 mb-2">确认操作</h3>
+                        <p id="confirmMessage" class="text-gray-600 mb-6">确认本期已还款？</p>
+                        <div id="confirmDetails" class="bg-gray-50 rounded-lg p-3 mb-6 text-sm">
+                            <div class="flex justify-between mb-1">
+                                <span>改前分期数：</span>
+                                <span id="beforeCount">6期</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span>改后分期数：</span>
+                                <span id="afterCount">7期</span>
+                            </div>
+                        </div>
+                        <div class="flex space-x-3">
+                            <button onclick="hideConfirmModal()" 
+                                    class="flex-1 py-3 px-4 border border-gray-300 rounded-lg text-gray-700 font-medium">
+                                取消
+                            </button>
+                            <button id="confirmButton" onclick="confirmAction()" 
+                                    class="flex-1 py-3 px-4 bg-blue-500 text-white rounded-lg font-medium">
+                                确认
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 底部导航栏 -->
+    <div class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200">
+        <div class="flex">
+            <div class="flex-1 text-center py-2">
+                <div class="text-gray-400">
+                    <i class="fas fa-bell text-xl mb-1"></i>
+                    <p class="text-xs">提醒</p>
+                </div>
+            </div>
+            <div class="flex-1 text-center py-2">
+                <div class="text-gray-400">
+                    <i class="fas fa-wallet text-xl mb-1"></i>
+                    <p class="text-xs">卡包</p>
+                </div>
+            </div>
+            <div class="flex-1 text-center py-2">
+                <div class="text-purple-500">
+                    <i class="fas fa-calendar-alt text-xl mb-1"></i>
+                    <p class="text-xs font-medium">分期</p>
+                </div>
+            </div>
+            <div class="flex-1 text-center py-2">
+                <div class="text-gray-400">
+                    <i class="fas fa-user text-xl mb-1"></i>
+                    <p class="text-xs">我的</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentAction = null;
+        let currentInstallmentId = null;
+
+        function showStatsPopup() {
+            document.getElementById('statsPopup').classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function hideStatsPopup() {
+            document.getElementById('statsPopup').classList.add('hidden');
+            document.body.style.overflow = 'auto';
+        }
+
+        function showAddInstallmentPopup() {
+            document.getElementById('installmentPopupTitle').textContent = '添加卡片分期';
+            document.getElementById('installmentPopup').classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function hideInstallmentPopup() {
+            document.getElementById('installmentPopup').classList.add('hidden');
+            document.body.style.overflow = 'auto';
+        }
+
+        function editInstallment(id) {
+            document.getElementById('installmentPopupTitle').textContent = '编辑分期信息';
+            document.getElementById('installmentPopup').classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function payInstallment(id, event) {
+            event.stopPropagation();
+            currentAction = 'pay';
+            currentInstallmentId = id;
+            
+            document.getElementById('confirmIcon').className = 'fas fa-credit-card text-4xl text-green-500 mb-4';
+            document.getElementById('confirmTitle').textContent = '确认还款';
+            document.getElementById('confirmMessage').textContent = '确认本期已还款？';
+            document.getElementById('beforeCount').textContent = '6期';
+            document.getElementById('afterCount').textContent = '7期';
+            document.getElementById('confirmButton').className = 'flex-1 py-2 px-4 bg-green-500 text-white rounded-lg font-medium';
+            
+            document.getElementById('confirmModal').classList.remove('hidden');
+        }
+
+        function cancelPayment(id, event) {
+            event.stopPropagation();
+            currentAction = 'cancel';
+            currentInstallmentId = id;
+            
+            document.getElementById('confirmIcon').className = 'fas fa-undo text-4xl text-orange-500 mb-4';
+            document.getElementById('confirmTitle').textContent = '确认撤销';
+            document.getElementById('confirmMessage').textContent = '确认撤销本期还款？';
+            document.getElementById('beforeCount').textContent = '6期';
+            document.getElementById('afterCount').textContent = '5期';
+            document.getElementById('confirmButton').className = 'flex-1 py-2 px-4 bg-orange-500 text-white rounded-lg font-medium';
+            
+            document.getElementById('confirmModal').classList.remove('hidden');
+        }
+
+        function hideConfirmModal() {
+            document.getElementById('confirmModal').classList.add('hidden');
+        }
+
+        function confirmAction() {
+            if (currentAction === 'pay') {
+                alert('还款成功！分期数已更新。');
+            } else if (currentAction === 'cancel') {
+                alert('撤销成功！分期数已回退。');
+            }
+            hideConfirmModal();
+        }
+
+        function calculateInstallment() {
+            const totalAmount = parseFloat(document.getElementById('totalAmount').value) || 0;
+            const installmentCount = parseInt(document.getElementById('installmentCount').value) || 0;
+            
+            if (totalAmount > 0 && installmentCount > 0) {
+                const monthlyPayment = (totalAmount / installmentCount).toFixed(2);
+                document.getElementById('monthlyPayment').value = monthlyPayment;
+            }
+            
+            calculateRemaining();
+            calculateRemainingAmount();
+        }
+
+        function calculateRemaining() {
+            const installmentCount = parseInt(document.getElementById('installmentCount').value) || 0;
+            const paidCount = parseInt(document.getElementById('paidCount').value) || 0;
+            
+            const remainingCount = Math.max(0, installmentCount - paidCount);
+            document.getElementById('remainingCount').value = remainingCount;
+        }
+
+        function calculateRemainingAmount() {
+            const totalAmount = parseFloat(document.getElementById('totalAmount').value) || 0;
+            const paidAmount = parseFloat(document.getElementById('paidAmount').value) || 0;
+            
+            const remainingAmount = Math.max(0, totalAmount - paidAmount).toFixed(2);
+            document.getElementById('remainingAmount').value = remainingAmount;
+        }
+
+        // 点击弹窗外部关闭
+        document.getElementById('installmentPopup').addEventListener('click', function(e) {
+            if (e.target === this) {
+                hideInstallmentPopup();
+            }
+        });
+
+        document.getElementById('confirmModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                hideConfirmModal();
+            }
+        });
+
+        // 表单提交处理
+        document.querySelector('form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            alert('分期信息保存成功！');
+            hideInstallmentPopup();
+        });
+    </script>
+</body>
+</html>

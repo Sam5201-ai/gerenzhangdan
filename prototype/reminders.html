@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>提醒 - 信用卡账单管理</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        html, body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            height: 100%;
+            overflow-x: hidden;
+        }
+        body {
+            position: relative;
+        }
+
+    </style>
+</head>
+<body class="bg-gray-50">
+    <!-- 状态栏 -->
+    <div class="fixed top-0 left-0 right-0 bg-white px-4 py-2 flex justify-between items-center text-sm z-50" style="height: 44px;">
+        <span class="font-medium">9:41</span>
+        <div class="flex items-center space-x-1">
+            <i class="fas fa-signal text-xs"></i>
+            <i class="fas fa-wifi text-xs"></i>
+            <i class="fas fa-battery-three-quarters text-xs"></i>
+        </div>
+    </div>
+
+    <!-- 顶部导航 -->
+    <div class="fixed left-0 right-0 bg-white shadow-sm px-4 py-3 z-40" style="top: 44px;">
+        <h1 class="text-lg font-semibold text-gray-800 text-center">
+            <i class="fas fa-bell mr-2 text-orange-500"></i>
+            还款提醒
+        </h1>
+    </div>
+
+    <!-- 状态筛选区域 -->
+    <div class="fixed top-24 left-0 right-0 bg-white z-10 py-3">
+        <div class="flex justify-center space-x-2">
+            <button class="px-3 py-2 bg-blue-500 text-white text-sm rounded-lg font-medium">
+                全部
+            </button>
+            <button class="px-3 py-2 bg-gray-100 text-gray-600 text-sm rounded-lg">
+                待还款
+            </button>
+            <button class="px-3 py-2 bg-gray-100 text-gray-600 text-sm rounded-lg">
+                已还款
+            </button>
+            <button class="px-3 py-2 bg-gray-100 text-gray-600 text-sm rounded-lg">
+                逾期
+            </button>
+        </div>
+    </div>
+
+    <!-- 提醒列表 -->
+    <div class="px-4 pb-20" style="margin-top: 180px;">
+        <!-- 提醒卡片1 - 待处理状态 -->
+        <div class="bg-white rounded-lg shadow-sm mb-3 p-4">
+            <div class="flex justify-between items-start mb-3">
+                <div class="flex-1">
+                    <h3 class="font-semibold text-gray-800 mb-1">招商银行信用卡</h3>
+                    <p class="text-gray-500 text-sm">**** **** **** 8888</p>
+                </div>
+                <span class="bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full text-xs font-medium">
+                    待处理
+                </span>
+            </div>
+            
+            <div class="mb-3">
+                <p class="text-sm text-gray-600 mb-1">
+                    <i class="fas fa-calendar mr-2"></i>
+                    还款日期：2024年1月15日
+                </p>
+                <p class="text-sm text-red-500 font-medium">
+                    <i class="fas fa-exclamation-triangle mr-2"></i>
+                    距离还款日还有3天
+                </p>
+            </div>
+            
+            <div class="flex">
+                <button onclick="showPaymentDateModal()" class="w-full bg-green-500 text-white py-2 px-4 rounded-lg text-sm font-medium">
+                    <i class="fas fa-credit-card mr-1"></i>
+                    已还款
+                </button>
+            </div>
+        </div>
+
+        <!-- 提醒卡片2 - 待还款状态 -->
+        <div class="bg-white rounded-lg shadow-sm mb-3 p-4">
+            <div class="flex justify-between items-start mb-3">
+                <div class="flex-1">
+                    <h3 class="font-semibold text-gray-800 mb-1">工商银行信用卡</h3>
+                    <p class="text-gray-500 text-sm">**** **** **** 6666</p>
+                </div>
+                <span class="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs font-medium">
+                    待还款
+                </span>
+            </div>
+            
+            <div class="mb-3">
+                <p class="text-sm text-gray-600 mb-1">
+                    <i class="fas fa-calendar mr-2"></i>
+                    还款日期：2024年1月20日
+                </p>
+                <p class="text-sm text-orange-500 font-medium">
+                    <i class="fas fa-clock mr-2"></i>
+                    距离还款日还有8天
+                </p>
+            </div>
+            
+            <div class="flex">
+                <button onclick="showPaymentDateModal()" class="w-full bg-green-500 text-white py-2 px-4 rounded-lg text-sm font-medium">
+                    <i class="fas fa-credit-card mr-1"></i>
+                    已还款
+                </button>
+            </div>
+        </div>
+
+        <!-- 提醒卡片3 - 已还款状态 -->
+        <div class="bg-white rounded-lg shadow-sm mb-3 p-4">
+            <div class="flex justify-between items-start mb-3">
+                <div class="flex-1">
+                    <h3 class="font-semibold text-gray-800 mb-1">建设银行信用卡</h3>
+                    <p class="text-gray-500 text-sm">**** **** **** 9999</p>
+                </div>
+                <span class="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-medium">
+                    已还款
+                </span>
+            </div>
+            
+            <div class="mb-3">
+                <p class="text-sm text-gray-600 mb-1">
+                    <i class="fas fa-calendar mr-2"></i>
+                    还款日期：2024年1月10日
+                </p>
+                <p class="text-sm text-green-500 font-medium">
+                    <i class="fas fa-check-circle mr-2"></i>
+                    已完成还款
+                </p>
+            </div>
+            
+            <div class="flex">
+                <button class="w-full bg-gray-500 text-white py-2 px-4 rounded-lg text-sm font-medium">
+                    <i class="fas fa-undo mr-1"></i>
+                    重置
+                </button>
+            </div>
+        </div>
+
+        <!-- 提醒卡片4 - 逾期状态 -->
+        <div class="bg-white rounded-lg shadow-sm mb-3 p-4">
+            <div class="flex justify-between items-start mb-3">
+                <div class="flex-1">
+                    <h3 class="font-semibold text-gray-800 mb-1">中信银行信用卡</h3>
+                    <p class="text-gray-500 text-sm">**** **** **** 7777</p>
+                </div>
+                <span class="bg-red-100 text-red-800 px-2 py-1 rounded-full text-xs font-medium">
+                    逾期
+                </span>
+            </div>
+            
+            <div class="mb-3">
+                <p class="text-sm text-gray-600 mb-1">
+                    <i class="fas fa-calendar mr-2"></i>
+                    还款日期：2024年1月8日
+                </p>
+                <p class="text-sm text-red-500 font-medium">
+                    <i class="fas fa-exclamation-circle mr-2"></i>
+                    已逾期4天，请尽快还款
+                </p>
+            </div>
+            
+            <div class="flex">
+                <button onclick="showPaymentDateModal()" class="w-full bg-red-500 text-white py-2 px-4 rounded-lg text-sm font-medium">
+                    <i class="fas fa-credit-card mr-1"></i>
+                    立即还款
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 底部导航栏 -->
+    <div class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200">
+        <div class="flex">
+            <div class="flex-1 text-center py-2">
+                <div class="text-blue-500">
+                    <i class="fas fa-bell text-xl mb-1"></i>
+                    <p class="text-xs font-medium">提醒</p>
+                </div>
+            </div>
+            <div class="flex-1 text-center py-2">
+                <div class="text-gray-400">
+                    <i class="fas fa-wallet text-xl mb-1"></i>
+                    <p class="text-xs">卡包</p>
+                </div>
+            </div>
+            <div class="flex-1 text-center py-2">
+                <div class="text-gray-400">
+                    <i class="fas fa-calendar-alt text-xl mb-1"></i>
+                    <p class="text-xs">分期</p>
+                </div>
+            </div>
+            <div class="flex-1 text-center py-2">
+                <div class="text-gray-400">
+                    <i class="fas fa-user text-xl mb-1"></i>
+                    <p class="text-xs">我的</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 还款日期选择弹窗 -->
+    <div id="paymentDateModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50">
+        <div class="flex items-end justify-center min-h-screen">
+            <div class="bg-white rounded-t-3xl w-full max-w-md mx-auto">
+                <div class="p-6">
+                    <!-- 弹窗标题 -->
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-xl font-semibold text-gray-800">选择还款日期</h2>
+                        <button onclick="hidePaymentDateModal()" class="text-gray-400 hover:text-gray-600">
+                            <i class="fas fa-times text-xl"></i>
+                        </button>
+                    </div>
+
+                    <!-- 日期选择 -->
+                    <div class="mb-6">
+                        <input type="date" id="paymentDate" 
+                               class="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+
+
+
+                    <!-- 操作按钮 -->
+                    <div class="flex space-x-3">
+                        <button onclick="hidePaymentDateModal()" 
+                                class="flex-1 bg-gray-100 text-gray-700 py-3 px-4 rounded-lg font-medium hover:bg-gray-200 transition-colors">
+                            取消
+                        </button>
+                        <button onclick="confirmPayment()" 
+                                class="flex-1 bg-green-500 text-white py-3 px-4 rounded-lg font-medium hover:bg-green-600 transition-colors">
+                            <i class="fas fa-check mr-2"></i>
+                            确认还款
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 显示还款日期选择弹窗
+        function showPaymentDateModal() {
+            const modal = document.getElementById('paymentDateModal');
+            const dateInput = document.getElementById('paymentDate');
+            
+            // 设置默认日期为今天
+            const today = new Date().toISOString().split('T')[0];
+            dateInput.value = today;
+            
+            modal.classList.remove('hidden');
+        }
+
+        // 隐藏还款日期选择弹窗
+        function hidePaymentDateModal() {
+            const modal = document.getElementById('paymentDateModal');
+            modal.classList.add('hidden');
+            
+            // 清空表单
+            document.getElementById('paymentDate').value = '';
+            document.getElementById('paymentNote').value = '';
+        }
+
+        // 确认还款
+        function confirmPayment() {
+            const date = document.getElementById('paymentDate').value;
+            const note = document.getElementById('paymentNote').value;
+            
+            if (!date) {
+                alert('请选择还款日期');
+                return;
+            }
+            
+            // 这里可以添加实际的还款处理逻辑
+            alert(`还款成功！\n还款日期：${date}${note ? '\n备注：' + note : ''}`);
+            hidePaymentDateModal();
+        }
+
+        // 简单的交互逻辑演示
+        document.addEventListener('DOMContentLoaded', function() {
+            // 状态筛选按钮点击效果
+            const filterButtons = document.querySelectorAll('.flex.space-x-2 button');
+            filterButtons.forEach(button => {
+                button.addEventListener('click', function() {
+                    filterButtons.forEach(btn => {
+                        btn.classList.remove('bg-blue-500', 'text-white', 'font-medium');
+                        btn.classList.add('bg-gray-100', 'text-gray-600');
+                    });
+                    this.classList.remove('bg-gray-100', 'text-gray-600');
+                    this.classList.add('bg-blue-500', 'text-white', 'font-medium');
+                });
+            });
+
+            // 点击弹窗外部关闭
+            document.getElementById('paymentDateModal').addEventListener('click', function(e) {
+                if (e.target === this) {
+                    hidePaymentDateModal();
+                }
+            });
+        });
+    </script>
+</body>
+</html>

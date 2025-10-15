@@ -1,0 +1,330 @@
+<!--分期页面-->
+<view class="container">
+  <!-- 自定义导航栏 -->
+  <view class="custom-navbar" style="padding-top: {{statusBarHeight}}px;">
+    <view class="navbar-content">
+      <view class="navbar-left" bindtap="showStatsPopup" hover-class="none">
+        <image class="stats-icon" src="/images/stats.svg" mode="aspectFit"></image>
+      </view>
+      <text class="navbar-title">分期账单</text>
+      <view class="navbar-right">
+      </view>
+    </view>
+  </view>
+  <!-- 分期列表 -->
+  <scroll-view class="installment-list" scroll-y="true" style="padding-top: {{statusBarHeight + 60}}px;">
+    <!-- 空状态提示 -->
+    <view class="empty-state" wx:if="{{installments.length === 0}}">
+      <view class="empty-icon">📋</view>
+      <text class="empty-title">暂无分期账单</text>
+      <text class="empty-desc">点击右下角 + 号添加您的第一个分期账单</text>
+    </view>
+    
+    <view class="installment-card" wx:for="{{installments}}" wx:key="id" 
+          bindtap="editInstallment" bindlongpress="deleteInstallment" 
+          data-id="{{item.id}}" data-index="{{index}}">
+      
+      <!-- 卡片头部信息 -->
+      <view class="card-header">
+        <view class="card-info">
+          <text class="card-name">{{item.cardName}}</text>
+          <text class="card-number">{{item.cardNumber}}</text>
+        </view>
+        <view class="amount-info">
+          <text class="total-amount">¥{{item.totalAmount}}</text>
+          <text class="amount-label">账单总金额</text>
+        </view>
+      </view>
+      
+      <!-- 进度条 -->
+      <view class="progress-section">
+        <view class="progress-header">
+          <text class="progress-label">还款进度</text>
+          <text class="progress-text">{{item.paidCount}}/{{item.totalCount}}期</text>
+        </view>
+        <view class="progress-bar">
+          <view class="progress-fill" style="width: {{item.progress}}%"></view>
+        </view>
+      </view>
+      
+      <!-- 详细信息网格 -->
+      <view class="info-grid">
+        <view class="info-item gray">
+          <text class="info-value">¥{{item.monthlyPayment}}</text>
+          <text class="info-label">每期还款</text>
+        </view>
+        <view class="info-item blue">
+          <text class="info-value">每月{{item.paymentDate}}日</text>
+          <text class="info-label">每期还款时间</text>
+        </view>
+      </view>
+      
+      <view class="info-grid">
+        <view class="info-item green">
+          <text class="info-value">¥{{item.paidAmount}}</text>
+          <text class="info-label">已还金额</text>
+        </view>
+        <view class="info-item red">
+          <text class="info-value">¥{{item.remainingAmount}}</text>
+          <text class="info-label">剩余金额</text>
+        </view>
+      </view>
+      
+      <!-- 最近还款时间 -->
+      <view class="last-payment" wx:if="{{item.lastPaymentDate}}">
+        <text class="iconfont icon-clock"></text>
+        <text class="last-payment-text">最近还款：{{item.lastPaymentDate}}</text>
+      </view>
+      
+      <!-- 操作按钮 -->
+      <view class="action-buttons" wx:if="{{item.status !== 'completed'}}">
+        <button class="pay-btn {{!item.lastPaymentDate || item.lastPaymentDate === '' ? 'full-width' : ''}}" catchtap="payInstallment" data-id="{{item.id}}" data-index="{{index}}">
+          <text class="iconfont icon-credit-card"></text>
+          <text>按期还款</text>
+        </button>
+        <button class="cancel-btn" catchtap="cancelPayment" data-id="{{item.id}}" data-index="{{index}}" wx:if="{{item.lastPaymentDate && item.lastPaymentDate !== ''}}">
+          <text class="iconfont icon-undo"></text>
+          <text>撤销</text>
+        </button>
+      </view>
+      
+      <!-- 已完成标识 -->
+      <view class="completed-badge" wx:if="{{item.status === 'completed'}}">
+        <text class="iconfont icon-check-circle"></text>
+        <text>分期已完成</text>
+      </view>
+    </view>
+  </scroll-view>
+
+  <!-- 右下角浮动添加按钮 -->
+  <view class="fab" bindtap="showAddInstallmentPopup">
+    <text class="fab-icon">+</text>
+  </view>
+
+  <!-- 添加分期弹窗 -->
+  <view class="popup-overlay {{showInstallmentPopup ? 'show' : ''}}" bindtap="hideInstallmentPopup">
+    <view class="popup-content" catchtap="stopPropagation">
+      <!-- 弹窗标题栏 -->
+      <view class="popup-header">
+        <text class="popup-title">{{editingInstallment ? '编辑卡片分期' : '添加卡片分期'}}</text>
+        <text class="iconfont icon-close" bindtap="hideInstallmentPopup" style="margin-right: 2px;"></text>
+      </view>
+
+      <!-- 表单内容 -->
+      <scroll-view class="form-content" scroll-y="true">
+        <view class="form-item">
+          <view class="form-label">
+            <text>选择卡片</text>
+          </view>
+          <view class="form-input date-selector" bindtap="showCardPicker">
+            <text class="{{formData.cardIndex >= 0 ? '' : 'placeholder'}}">{{formData.cardIndex >= 0 ? cardOptions[formData.cardIndex].name : '请选择信用卡'}}</text>
+            <text class="selector-arrow">▼</text>
+          </view>
+        </view>
+
+        <view class="form-item">
+          <view class="form-label">
+            <text>账单总金额</text>
+          </view>
+          <input class="form-input" type="digit" placeholder="请输入账单总金额" 
+                 value="{{formData.totalAmount}}" bindinput="onInputTotalAmount" />
+        </view>
+
+        <view class="form-item">
+          <view class="form-label">
+            <text>分期笔数</text>
+          </view>
+          <input class="form-input" type="number" placeholder="请输入分期笔数" 
+                 value="{{formData.totalCount}}" bindinput="onInputTotalCount" />
+        </view>
+
+        <view class="form-item">
+          <view class="form-label">
+            <text>每期还款</text>
+          </view>
+          <input class="form-input" type="digit" placeholder="每期还款金额" 
+                 value="{{formData.monthlyPayment}}" bindinput="onInputMonthlyPayment" />
+        </view>
+
+        <view class="form-item">
+          <view class="form-label">
+            <text>还款日期</text>
+          </view>
+          <view class="form-input date-selector" bindtap="showDatePicker">
+            <text class="{{formData.paymentDate ? '' : 'placeholder'}}">{{formData.paymentDate ? formData.paymentDate + '日' : '请选择还款日期（1-31）'}}</text>
+            <text class="selector-arrow">▼</text>
+          </view>
+        </view>
+
+        <view class="form-item">
+          <view class="form-label">
+            <text>已还分期数</text>
+          </view>
+          <input class="form-input" type="number" placeholder="请输入已还分期数" 
+                 value="{{formData.paidCount}}" bindinput="onInputPaidCount" />
+        </view>
+
+        <view class="form-item">
+          <view class="form-label">
+            <text>剩余分期数</text>
+          </view>
+          <input class="form-input readonly" type="number" disabled 
+                 value="{{formData.remainingCount}}" />
+        </view>
+
+        <view class="form-item">
+          <view class="form-label">
+            <text>已还款金额</text>
+          </view>
+          <input class="form-input" type="digit" placeholder="请输入已还款金额" 
+                 value="{{formData.paidAmount}}" bindinput="onInputPaidAmount" />
+        </view>
+
+        <view class="form-item">
+          <view class="form-label">
+            <text>剩余还款金额</text>
+          </view>
+          <input class="form-input readonly" type="digit" disabled 
+                 value="{{formData.remainingAmount}}" />
+        </view>
+
+        <view class="form-item">
+          <view class="form-label">
+            <text>最近还款时间</text>
+          </view>
+          <picker mode="date" value="{{formData.lastPaymentDate}}" start="2020-01-01" end="{{today}}" bindchange="selectLastPaymentDate">
+            <view class="form-input date-selector">
+              <text class="{{formData.lastPaymentDate ? '' : 'placeholder'}}">{{formData.lastPaymentDate || '请选择日期（可选）'}}</text>
+              <text wx:if="{{!formData.lastPaymentDate}}" class="selector-arrow">▼</text>
+              <text wx:else class="clear-icon" catchtap="clearLastPaymentDate">✕</text>
+            </view>
+          </picker>
+        </view>
+
+        <!-- 操作按钮 -->
+        <view class="form-actions">
+          <button class="cancel-btn" bindtap="hideInstallmentPopup">取消</button>
+          <button class="save-btn" bindtap="saveInstallment">保存</button>
+        </view>
+      </scroll-view>
+    </view>
+  </view>
+
+  <!-- 分期统计弹窗 -->
+  <view class="popup-overlay {{showStatsPopup ? 'show' : ''}}" bindtap="hideStatsPopup">
+    <view class="stats-popup" catchtap="stopPropagation">
+      <view class="popup-header">
+        <text class="popup-title">分期统计</text>
+        <text class="iconfont icon-close" bindtap="hideStatsPopup" style="margin-right: 2px;"></text>
+      </view>
+      
+      <view class="stats-content">
+        <view class="stats-item gray">
+          <text class="stats-label">分期总账单数：</text>
+          <text class="stats-value">{{stats.totalCount}}个</text>
+        </view>
+        <view class="stats-item green">
+          <text class="stats-label">已还清账单数：</text>
+          <text class="stats-value">{{stats.completedCount}}个</text>
+        </view>
+        <view class="stats-item yellow">
+          <text class="stats-label">未还清账单数：</text>
+          <text class="stats-value">{{stats.activeCount}}个</text>
+        </view>
+        <view class="stats-item blue">
+          <text class="stats-label">每期合计还款金额：</text>
+          <text class="stats-value">¥{{stats.monthlyTotalAmount}}</text>
+        </view>
+        <view class="stats-item purple">
+          <text class="stats-label">累计账单总金额：</text>
+          <text class="stats-value">¥{{stats.totalAmount}}</text>
+        </view>
+        <view class="stats-item green">
+          <text class="stats-label">累计已还款金额：</text>
+          <text class="stats-value">¥{{stats.paidAmount}}</text>
+        </view>
+        <view class="stats-item red">
+          <text class="stats-label">累计剩余还款金额：</text>
+          <text class="stats-value">¥{{stats.remainingAmount}}</text>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <!-- 确认弹窗 -->
+  <view class="popup-overlay {{showConfirmPopup ? 'show' : ''}}" bindtap="hideConfirmModal">
+    <view class="confirm-popup" catchtap="stopPropagation">
+      <view class="confirm-content">
+        <view class="confirm-icon-wrapper">
+          <text class="iconfont {{confirmData.icon}}"></text>
+        </view>
+        <text class="confirm-title">{{confirmData.title}}</text>
+        <text class="confirm-message">{{confirmData.message}}</text>
+        <view class="confirm-details">
+          <view class="detail-row">
+            <text class="detail-label">操作前已还：</text>
+            <text class="detail-value">{{confirmData.beforeCount}}期</text>
+          </view>
+          <view class="detail-row">
+            <text class="detail-label">操作后已还：</text>
+            <text class="detail-value">{{confirmData.afterCount}}期</text>
+          </view>
+        </view>
+        
+        <!-- 还款日期选择器 - 独立于灰色框外 -->
+         <view class="payment-date-section" wx:if="{{confirmData.actionType === 'pay'}}">
+           <view class="payment-date-row">
+             <text class="payment-date-label">还款日期</text>
+             <picker mode="date" value="{{confirmData.paymentDate}}" start="2020-01-01" end="{{today}}" bindchange="selectConfirmPaymentDate">
+               <view class="payment-date-selector">
+                 <text class="{{confirmData.paymentDate ? 'date-text' : 'placeholder'}}">{{confirmData.paymentDate || '请选择日期'}}</text>
+                 <text class="calendar-icon">📅</text>
+               </view>
+             </picker>
+           </view>
+         </view>
+        <view class="confirm-buttons">
+          <button class="cancel-button" bindtap="hideConfirmModal">取消</button>
+          <button class="confirm-button {{confirmData.actionType}}" bindtap="confirmAction">确认</button>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <!-- 日期选择弹窗 -->
+  <view class="date-picker-overlay {{showDatePicker ? 'show' : ''}}" bindtap="hideDatePicker">
+    <view class="date-picker-popup" catchtap="">
+      <view class="date-picker-header">
+        <text class="date-picker-title">选择还款日期</text>
+        <text class="date-picker-close" bindtap="hideDatePicker">✕</text>
+      </view>
+      <scroll-view class="date-picker-content" scroll-y="true">
+        <view class="date-options">
+          <view wx:for="{{dateOptions}}" wx:key="*this" class="date-option {{formData.paymentDate == item ? 'selected' : ''}}" bindtap="selectDate" data-date="{{item}}">
+            <text>{{item}}日</text>
+            <text class="check-icon {{formData.paymentDate == item ? 'show' : ''}}">✓</text>
+          </view>
+        </view>
+      </scroll-view>
+    </view>
+  </view>
+
+  <!-- 信用卡选择弹窗 -->
+  <view class="date-picker-overlay {{showCardPicker ? 'show' : ''}}" bindtap="hideCardPicker">
+    <view class="date-picker-popup" catchtap="">
+      <view class="date-picker-header">
+        <text class="date-picker-title">选择信用卡</text>
+        <text class="date-picker-close" bindtap="hideCardPicker">✕</text>
+      </view>
+      <scroll-view class="date-picker-content" scroll-y="true">
+        <view class="card-options">
+          <view wx:for="{{cardOptions}}" wx:key="id" class="date-option {{formData.cardIndex == index ? 'selected' : ''}}" bindtap="selectCard" data-index="{{index}}">
+            <text>{{item.name}}</text>
+            <text class="check-icon {{formData.cardIndex == index ? 'show' : ''}}">✓</text>
+          </view>
+        </view>
+      </scroll-view>
+    </view>
+  </view>
+
+</view>

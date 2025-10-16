@@ -280,7 +280,7 @@ page .menu-item {
   z-index: 1000;
   opacity: 0;
   visibility: hidden;
-  transition: all 0.3s ease;
+  transition: opacity 0.3s ease, visibility 0.3s ease;
 }
 
 .popup-overlay.show {
@@ -300,7 +300,7 @@ page .menu-item {
   transition: transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
 }
 
-.popup-overlay.show .popup-content {
+.popup-overlay.show .popup-content:not(.about-popup) {
   transform: translateY(0);
 }
 
@@ -456,56 +456,86 @@ page .menu-item {
   color: white;
 }
 
-/* 关于我们弹窗 - 底部弹出样式 */
+/* 关于我们弹窗 - 底部弹出样式（与卡包页面一致） */
 .about-popup {
   position: absolute !important;
   bottom: 0 !important;
   left: 0 !important;
   right: 0 !important;
   top: auto !important;
-  transform: none !important;
   width: 100% !important;
   border-radius: 32rpx 32rpx 0 0 !important;
-  max-height: 80vh !important;
+  max-height: 85vh !important;
   display: flex !important;
   flex-direction: column !important;
+  transform: translateY(100%) !important;
+  transition: transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94) !important;
+}
+
+.popup-overlay.show .about-popup {
+  transform: translateY(0) !important;
+}
+
+.about-popup .popup-header {
+  border-bottom: 1rpx solid #f1f5f9;
+  padding: 32rpx 32rpx 24rpx;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.about-popup .popup-header .popup-title {
+  flex: 1;
+  text-align: left;
+  font-size: 36rpx;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.about-popup .popup-close {
+  background: transparent;
+  color: #9ca3af;
+  font-size: 48rpx;
+  font-weight: 300;
+  position: absolute;
+  right: 32rpx;
 }
 
 .about-scroll-content {
   flex: 1;
   overflow-y: auto;
-  max-height: calc(80vh - 120rpx);
+  max-height: calc(85vh - 120rpx);
 }
 
 .about-content {
-  padding: 0 32rpx 32rpx;
+  padding: 0 40rpx 40rpx;
 }
 
 .about-header-info {
   text-align: center;
-  padding: 32rpx 0;
-  border-bottom: 1rpx solid #f1f5f9;
+  padding: 20rpx 0 40rpx;
   margin-bottom: 32rpx;
 }
 
 .app-icon {
-  width: 120rpx;
-  height: 120rpx;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border-radius: 24rpx;
-  margin: 0 auto 20rpx;
+  width: 140rpx;
+  height: 140rpx;
+  border-radius: 32rpx;
+  margin: 0 auto 24rpx;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 8rpx 24rpx rgba(102, 126, 234, 0.3);
+  box-shadow: 0 8rpx 32rpx rgba(0, 0, 0, 0.15);
+  overflow: hidden;
 }
 
-.icon-text {
-  font-size: 56rpx;
+.icon-image {
+  width: 100%;
+  height: 100%;
 }
 
 .app-name {
-  font-size: 32rpx;
+  font-size: 36rpx;
   font-weight: 600;
   color: #1f2937;
   margin-bottom: 12rpx;
@@ -513,13 +543,14 @@ page .menu-item {
 }
 
 .app-version {
-  font-size: 26rpx;
-  color: #6b7280;
+  font-size: 28rpx;
+  color: #667eea;
   display: block;
+  font-weight: 500;
 }
 
 .about-section {
-  margin-bottom: 40rpx;
+  margin-bottom: 48rpx;
 }
 
 .about-section:last-child {
@@ -528,19 +559,101 @@ page .menu-item {
 
 .section-title {
   display: block;
-  font-size: 30rpx;
+  font-size: 32rpx;
   font-weight: 600;
   color: #1f2937;
-  margin-bottom: 20rpx;
+  margin-bottom: 24rpx;
   line-height: 1.5;
 }
 
 .section-content {
   display: block;
   font-size: 28rpx;
-  color: #4b5563;
+  color: #6b7280;
   line-height: 1.8;
   text-align: justify;
+}
+
+/* 功能特点列表 */
+.features-list {
+  display: flex;
+  flex-direction: column;
+  gap: 20rpx;
+}
+
+.feature-item {
+  display: flex;
+  align-items: flex-start;
+  padding: 0;
+}
+
+.feature-checkmark {
+  font-size: 32rpx;
+  color: #10b981;
+  margin-right: 16rpx;
+  flex-shrink: 0;
+  font-weight: 600;
+  line-height: 1.6;
+}
+
+.feature-text {
+  font-size: 28rpx;
+  color: #6b7280;
+  line-height: 1.6;
+  flex: 1;
+}
+
+/* 联系我们部分 */
+.contact-section {
+  background: #f9fafb;
+  border-radius: 20rpx;
+  padding: 32rpx;
+  margin-bottom: 20rpx;
+}
+
+.contact-intro {
+  display: block;
+  font-size: 26rpx;
+  color: #9ca3af;
+  margin-bottom: 24rpx;
+  line-height: 1.6;
+}
+
+.contact-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+}
+
+.contact-item {
+  display: flex;
+  align-items: center;
+  padding: 8rpx 0;
+}
+
+.contact-icon {
+  font-size: 40rpx;
+  margin-right: 20rpx;
+  flex-shrink: 0;
+}
+
+.contact-info {
+  display: flex;
+  align-items: baseline;
+  flex: 1;
+  flex-wrap: wrap;
+}
+
+.contact-label {
+  font-size: 28rpx;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.contact-value {
+  font-size: 28rpx;
+  color: #1f2937;
+  font-weight: 400;
 }
 
 /* 用户名编辑弹窗 */
@@ -597,10 +710,15 @@ page .menu-item {
   left: 0 !important;
   right: 0 !important;
   top: auto !important;
-  transform: none !important;
   width: 100% !important;
   border-radius: 32rpx 32rpx 0 0 !important;
   max-height: none !important;
+  transform: translateY(100%) !important;
+  transition: transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94) !important;
+}
+
+.popup-overlay.show .import-export-popup {
+  transform: translateY(0) !important;
 }
 
 .data-action-item {
@@ -664,10 +782,15 @@ page .menu-item {
   left: 0 !important;
   right: 0 !important;
   top: auto !important;
-  transform: none !important;
   width: 100% !important;
   border-radius: 32rpx 32rpx 0 0 !important;
   max-height: none !important;
+  transform: translateY(100%) !important;
+  transition: transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94) !important;
+}
+
+.popup-overlay.show .export-options-popup {
+  transform: translateY(0) !important;
 }
 
 .export-option-item {

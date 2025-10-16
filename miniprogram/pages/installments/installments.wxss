@@ -363,7 +363,7 @@
 }
 
 .fab-icon {
-  font-size: 48rpx;
+  font-size: 60rpx;
   color: white;
   font-weight: 300;
   line-height: 1;

@@ -141,33 +141,76 @@
 <!-- 关于我们弹窗 -->
 <view class="popup-overlay {{showAboutPopup ? 'show' : ''}}" bindtap="hideAboutPopup">
   <view class="popup-content about-popup" catchtap="stopPropagation">
-    <view class="popup-header">
+    <view class="popup-header about-header">
       <text class="popup-title">关于我们</text>
       <text class="popup-close" bindtap="hideAboutPopup">×</text>
     </view>
     <scroll-view class="about-scroll-content" scroll-y="true">
       <view class="about-content">
+        <!-- 顶部应用信息 -->
         <view class="about-header-info">
           <view class="app-icon">
-            <text class="icon-text">💳</text>
+            <image class="icon-image" src="/images/icon.png" mode="aspectFit"></image>
           </view>
-          <text class="app-name">卡包助手</text>
-          <text class="app-version">版本 1.0.0</text>
+          <text class="app-name">卡帮手plus</text>
+          <text class="app-version">v1.0.0</text>
         </view>
         
+        <!-- 应用介绍 -->
         <view class="about-section">
-          <text class="section-title">【我的初衷】</text>
+          <text class="section-title">应用介绍</text>
+          <text class="section-content">卡帮手plus是一款专为信用卡用户设计的账单管理工具，帮助您轻松记录卡片的账单、还款日等信息，并提供账单提醒功能。通过卡帮手plus，让每个人都能及时掌握还款信息，避免逾期和利息。</text>
+        </view>
+        
+        <!-- 我的初衷 -->
+        <view class="about-section">
+          <text class="section-title">我的初衷</text>
           <text class="section-content">信用卡多了，怕自己记不清账单！分期账单更让人头大？什么时候还？还剩多少？搞不清楚就容易花超支、付利息。做这个小助手，就是想把卡片和分期账单都整理清楚，一眼看清信用卡总额度是多少，账单什么时候还，到底还欠多少钱、有没有账单忘记漏还了，心里有数才不慌。</text>
         </view>
         
+        <!-- 功能特点 -->
         <view class="about-section">
-          <text class="section-title">【数据安全】</text>
-          <text class="section-content">数据纯本地存储，只在自己手机里，安全放心！ 信用卡号、账单金额这些敏感信息，绝不存到网上！所有数据都只保存在自己的手机本地，谁也拿不到。安全第一，用着踏实。</text>
+          <text class="section-title">功能特点</text>
+          <view class="features-list">
+            <view class="feature-item">
+              <text class="feature-checkmark">✓</text>
+              <text class="feature-text">卡片管理：轻松添加和管理多张信用卡信息</text>
+            </view>
+            <view class="feature-item">
+              <text class="feature-checkmark">✓</text>
+              <text class="feature-text">账单提醒：设置还款日提醒，避免逾期产生利息</text>
+            </view>
+            <view class="feature-item">
+              <text class="feature-checkmark">✓</text>
+              <text class="feature-text">分期管理：记录和追踪分期账单，清晰掌握还款进度</text>
+            </view>
+            <view class="feature-item">
+              <text class="feature-checkmark">✓</text>
+              <text class="feature-text">数据安全：本地存储，保护您的隐私和财务信息</text>
+            </view>
+          </view>
         </view>
         
-        <view class="about-section">
-          <text class="section-title">【开发者结语】</text>
-          <text class="section-content">信用卡就是一个坑，祝各位早日脱坑上岸！</text>
+        <!-- 联系我们 -->
+        <view class="about-section contact-section">
+          <text class="section-title">联系我们</text>
+          <text class="contact-intro">如有任何问题或建议，欢迎通过以下方式联系我们：</text>
+          <view class="contact-list">
+            <view class="contact-item">
+              <text class="contact-icon">📧</text>
+              <view class="contact-info">
+                <text class="contact-label">邮箱：</text>
+                <text class="contact-value">396770760@qq.com</text>
+              </view>
+            </view>
+            <view class="contact-item">
+              <text class="contact-icon">💬</text>
+              <view class="contact-info">
+                <text class="contact-label">微信：</text>
+                <text class="contact-value">396770760</text>
+              </view>
+            </view>
+          </view>
         </view>
       </view>
     </scroll-view>

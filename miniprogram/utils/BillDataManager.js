@@ -20,21 +20,67 @@ class BillDataManager {
         bills = [];
       }
       
-      // 数据迁移：确保所有账单都有字符串ID
+      // 数据迁移：确保所有账单都有字符串ID和cardId
       let needsMigration = false;
+      let cardList = null;
+      
+      // 检查是否需要cardId迁移
+      const hasOldData = bills.some(bill => !bill.cardId && bill.cardName);
+      
+      if (hasOldData) {
+        try {
+          const { getCardDataManager } = require('./CardDataManager.js');
+          const cardDataManager = getCardDataManager();
+          cardList = await cardDataManager.getCardList() || [];
+        } catch (error) {
+          console.warn('获取卡片列表失败，跳过cardId迁移:', error);
+          cardList = [];
+        }
+      }
+      
       bills = bills.map(bill => {
+        let updatedBill = { ...bill };
+        
+        // 迁移ID
         if (typeof bill.id === 'number' || !bill.id) {
           needsMigration = true;
-          return {
-            ...bill,
-            id: this.generateSecureId()
-          };
+          updatedBill.id = this.generateSecureId();
         }
-        return bill;
+        
+        // 迁移cardId：为没有cardId的旧数据补充cardId
+        if (!bill.cardId && bill.cardName && cardList) {
+          needsMigration = true;
+          
+          // 通过卡片名称匹配cardId
+          const matchedCard = cardList.find(card => {
+            if (!card.name) return false;
+            
+            const billCardName = bill.cardName.toLowerCase();
+            const cardName = card.name.toLowerCase();
+            
+            // 银行关键词匹配
+            const keywords = ['招商', '工商', '建设', '农业', '中国', '交通', '民生', '光大', '华夏', '平安', '兴业', '浦发', '中信', '广发'];
+            for (const keyword of keywords) {
+              if (billCardName.includes(keyword) && cardName.includes(keyword)) {
+                return true;
+              }
+            }
+            
+            return false;
+          });
+          
+          if (matchedCard) {
+            updatedBill.cardId = matchedCard.id;
+            console.log(`为账单 "${bill.cardName}" 补充cardId: ${matchedCard.id}`);
+          }
+        }
+        
+        return updatedBill;
       });
       
       if (needsMigration) {
         await this.saveBillList(bills, { immediate: false });
+        console.log('账单数据迁移完成，更新了cardId字段');
       }
       
       return bills;

@@ -15,7 +15,6 @@ Page({
     showCardPopup: false,
     popupTitle: '添加信用卡',
     editingCardId: null,
-    popupAnimation: {},
     
     // 表单数据
     formData: {
@@ -106,7 +105,7 @@ Page({
   
   // 加载卡片列表
   async loadCardList(options = {}) {
-    const { showLoading = true } = options
+    const { showLoading = true, useCache = true } = options
     
     try {
       if (showLoading) {
@@ -114,19 +113,35 @@ Page({
       }
       
       const cardList = await this.cardDataManager.getCardList({
-        useCache: true, // 优先使用缓存
+        useCache: useCache, // 可配置是否使用缓存
         maxAge: 30 * 60 * 1000 // 30分钟缓存有效期
       })
       
-      // 为每个卡片添加隐匿后的卡号
-      const processedCardList = cardList.map(card => ({
-        ...card,
-        maskedCardNumber: this.maskCardNumber(card.cardNumber)
+      // 为每个卡片添加隐匿后的卡号和分期欠款
+      const processedCardList = await Promise.all(cardList.map(async (card) => {
+        const installmentDebt = await this.calculateInstallmentDebt(card)
+        console.log(`卡片 ${card.name} 处理后的分期欠款:`, installmentDebt)
+        return {
+          ...card,
+          maskedCardNumber: this.maskCardNumber(card.cardNumber),
+          installmentDebt: installmentDebt
+        }
       }))
+      
+      console.log('处理后的卡片列表:', processedCardList.map(card => ({
+        name: card.name,
+        installmentDebt: card.installmentDebt
+      })))
       
       this.setData({
         cardList: processedCardList
       })
+      
+      console.log('setData后的cardList:', this.data.cardList.map(card => ({
+        name: card.name,
+        installmentDebt: card.installmentDebt
+      })))
+      
       
       console.log(`成功加载${cardList.length}张卡片`)
       
@@ -154,11 +169,20 @@ Page({
         maxAge: 0 // 不使用缓存
       })
       
-      // 为每个卡片添加隐匿后的卡号
-      const processedCardList = cardList.map(card => ({
-        ...card,
-        maskedCardNumber: this.maskCardNumber(card.cardNumber)
+      // 为每个卡片添加隐匿后的卡号和分期欠款
+      const processedCardList = await Promise.all(cardList.map(async (card) => {
+        const installmentDebt = await this.calculateInstallmentDebt(card)
+        return {
+          ...card,
+          maskedCardNumber: this.maskCardNumber(card.cardNumber),
+          installmentDebt: installmentDebt
+        }
       }))
+      
+      console.log('静默更新 - 处理后的分期欠款:', processedCardList.map(card => ({
+        name: card.name,
+        installmentDebt: card.installmentDebt
+      })))
       
       // 比较数据是否有变化
       const currentCardList = this.data.cardList
@@ -218,13 +242,6 @@ Page({
       })
     }
     
-    // 创建动画实例
-    const animation = wx.createAnimation({
-      duration: 300,
-      timingFunction: 'ease',
-      delay: 0
-    })
-    
     // 设置显示状态
     this.setData({
       showCardPopup: true,
@@ -240,14 +257,6 @@ Page({
       reminderEnabled: false,
       selectedReminderDays: 3
     })
-    
-    // 延迟执行动画
-    setTimeout(() => {
-      animation.translateY(0).opacity(1).step()
-      this.setData({
-        popupAnimation: animation.export()
-      })
-    }, 50)
   },
 
   // 编辑卡片
@@ -263,13 +272,6 @@ Page({
         })
       }
       
-      // 创建动画实例
-      const animation = wx.createAnimation({
-        duration: 300,
-        timingFunction: 'ease',
-        delay: 0
-      })
-      
       this.setData({
         showCardPopup: true,
         popupTitle: '编辑信用卡',
@@ -284,14 +286,6 @@ Page({
         reminderEnabled: card.reminderEnabled || false,
         selectedReminderDays: card.reminderDays || 3
       })
-      
-      // 延迟执行动画
-      setTimeout(() => {
-        animation.translateY(0).opacity(1).step()
-        this.setData({
-          popupAnimation: animation.export()
-        })
-      }, 50)
     }
   },
 
@@ -339,25 +333,10 @@ Page({
       })
     }
     
-    // 创建关闭动画
-    const animation = wx.createAnimation({
-      duration: 300,
-      timingFunction: 'ease',
-      delay: 0
-    })
-    
-    // 执行关闭动画
-    animation.translateY('100%').opacity(0).step()
+    // 直接隐藏弹窗，CSS会处理动画
     this.setData({
-      popupAnimation: animation.export()
+      showCardPopup: false
     })
-    
-    // 动画结束后隐藏弹窗
-    setTimeout(() => {
-      this.setData({
-        showCardPopup: false
-      })
-    }, 300)
   },
 
   // 阻止事件冒泡
@@ -441,8 +420,6 @@ Page({
     const { formData, selectedStyle, reminderEnabled, selectedReminderDays, editingCardId } = this.data
     
     try {
-      console.log('[卡包页面] 开始保存卡片')
-      
       // 构建卡片数据
       const cardData = {
         name: formData.name,
@@ -454,34 +431,27 @@ Page({
         reminderDays: selectedReminderDays
       }
       
-      console.log('[卡包页面] 卡片数据:', cardData)
-      
+      // 保存卡片数据
       if (editingCardId) {
-        // 编辑模式
-        console.log('[卡包页面] 执行编辑操作')
         await this.cardDataManager.updateCard(editingCardId, cardData)
       } else {
-        // 添加模式
-        console.log('[卡包页面] 执行添加操作')
-        const result = await this.cardDataManager.addCard(cardData)
-        console.log('[卡包页面] 添加结果:', result)
+        await this.cardDataManager.addCard(cardData)
       }
       
-      console.log('[卡包页面] 卡片保存完成，开始更新列表')
-      
-      // 更新本地列表（不显示loading，避免覆盖toast）
-      await this.loadCardList({ showLoading: false })
+      // 立即关闭弹窗（提升响应速度）
+      this.hideCardPopup()
       
       // 显示成功提示
       wx.showToast({
         title: editingCardId ? '修改成功' : '添加成功',
-        icon: 'success'
+        icon: 'success',
+        duration: 500
       })
       
-      // 显示成功提示后关闭弹窗
+      // 后台异步刷新列表（不阻塞UI）
       setTimeout(() => {
-        this.hideCardPopup()
-      }, 1000)
+        this.loadCardList({ showLoading: false, useCache: false })
+      }, 100)
       
     } catch (error) {
       console.error('[卡包页面] 保存卡片失败:', error)
@@ -533,6 +503,59 @@ Page({
     }
   },
   
+  // 计算指定卡片的分期欠款总金额
+  async calculateInstallmentDebt(card) {
+    try {
+      const { getBillDataManager } = require('../../utils/BillDataManager.js')
+      const billDataManager = getBillDataManager()
+      
+      // 强制重新获取数据，不使用缓存
+      const billList = await billDataManager.getBillList({ useCache: false })
+      
+      if (!billList || billList.length === 0) {
+        return '0'
+      }
+      
+      // 通过cardId匹配分期账单
+      const cardBills = billList.filter(bill => {
+        // 优先使用cardId匹配（新数据）
+        if (bill.cardId && card.id) {
+          return bill.cardId === card.id
+        }
+        
+        // 兼容旧数据：如果没有cardId，则使用名称匹配
+        if (!bill.cardId && bill.cardName && card.name) {
+          const billCardName = bill.cardName.toLowerCase()
+          const cardName = card.name.toLowerCase()
+          
+          // 银行关键词匹配
+          const keywords = ['招商', '工商', '建设', '农业', '中国', '交通', '民生', '光大', '华夏', '平安', '兴业', '浦发', '中信', '广发']
+          for (const keyword of keywords) {
+            if (billCardName.includes(keyword) && cardName.includes(keyword)) {
+              return true
+            }
+          }
+        }
+        
+        return false
+      })
+      
+      // 计算总的剩余还款金额
+      let totalDebt = 0
+      cardBills.forEach(bill => {
+        const remainingAmount = parseFloat(bill.remainingAmount?.toString().replace(/,/g, '')) || 0
+        totalDebt += remainingAmount
+      })
+      
+      console.log(`卡片 ${card.name} 分期欠款: ¥${totalDebt.toLocaleString()}`)
+      
+      return totalDebt > 0 ? totalDebt.toLocaleString() : '0'
+    } catch (error) {
+      console.error('计算分期欠款失败:', error)
+      return '0'
+    }
+  },
+  
   // 卡号隐匿处理
   maskCardNumber(cardNumber) {
     if (!cardNumber || cardNumber.length < 4) {
@@ -542,5 +565,20 @@ Page({
     const lastFour = cardNumber.slice(-4)
     const maskedPart = '*'.repeat(Math.max(0, cardNumber.length - 4))
     return maskedPart + lastFour
+  },
+
+  // 页面显示时
+  onShow: function() {
+    console.log('卡包页面显示 - 强制刷新数据')
+    
+    // 设置自定义tabBar选中状态
+    if (typeof this.getTabBar === 'function' && this.getTabBar()) {
+      this.getTabBar().setData({
+        selected: 0
+      })
+    }
+    
+    // 强制刷新卡片数据，不使用缓存
+    this.loadCardList({ showLoading: false, useCache: false })
   }
 })

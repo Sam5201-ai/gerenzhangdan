@@ -906,6 +906,7 @@ Page({
     const paidCount = parseInt(formData.paidCount) || 0;
     
     const installmentData = {
+      cardId: selectedCard.id, // 添加cardId字段
       cardName: selectedCard.name.split(' (')[0],
       cardNumber: selectedCard.name.match(/\((.*)\)/)[1],
       totalAmount: this.formatNumber(totalAmount),

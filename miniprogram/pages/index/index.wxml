@@ -21,20 +21,30 @@
     
     <!-- 信用卡列表 -->
     <view wx:for="{{cardList}}" wx:key="id" class="credit-card card-gradient-{{item.style}}" bindtap="editCard" bindlongpress="deleteCard" data-id="{{item.id}}">
+      <!-- 卡片背景装饰 -->
+      <view class="card-decoration"></view>
+      
       <view class="card-header">
         <view class="card-info">
           <text class="card-name">{{item.name}}</text>
-          <text class="card-bank">最近还款时间</text>
+        </view>
+        <!-- 额度移到右上角 -->
+        <view class="card-limit-corner">
+          <text class="limit-value">¥{{item.limit}}</text>
         </view>
       </view>
+      
       <view class="card-number">
         <text class="card-number-text">{{item.maskedCardNumber}}</text>
       </view>
+      
       <view class="card-footer">
-        <view class="card-limit">
-          <text class="card-label">额度</text>
-          <text class="card-value">¥{{item.limit}}</text>
+        <!-- 左下角分期欠款 -->
+        <view class="card-installment-debt">
+          <text class="debt-label">剩余账单欠款</text>
+          <text class="debt-value">¥{{item.installmentDebt || '0'}}</text>
         </view>
+        <!-- 还款日 -->
         <view class="card-due">
           <text class="card-label">还款日</text>
           <text class="card-value">每月{{item.dueDate}}日</text>
@@ -51,8 +61,8 @@
   </view>
 
   <!-- 添加/编辑卡片弹窗 -->
-  <view wx:if="{{showCardPopup}}" class="popup-overlay" bindtap="hideCardPopup">
-    <view class="popup-bottom" animation="{{popupAnimation}}" catchtap="stopPropagation">
+  <view class="popup-overlay {{showCardPopup ? 'show' : ''}}" bindtap="hideCardPopup">
+    <view class="popup-bottom" catchtap="stopPropagation">
       <!-- 固定标题栏 -->
       <view class="popup-header-fixed">
         <text class="popup-title">{{popupTitle}}</text>

@@ -1,11 +1,14 @@
 /**
  * 用户管理器 - 处理用户信息管理
- * 功能：本地用户信息存储和管理
+ * 功能：本地用户信息存储 + 云端(openid) 登录与同步
  */
+
+const { getCloudApi } = require('./CloudApi.js')
 
 class UserManager {
   constructor() {
     this.userInfo = null
+    this.cloudApi = getCloudApi()
   }
 
   /**
@@ -31,6 +34,27 @@ class UserManager {
         }
         this.saveUserInfo(this.userInfo)
         console.log('[UserManager] 创建新用户信息')
+      }
+
+      // 云端登录：拿到 openid，并将 userId 统一为 openid（用于多端同步）
+      // 说明：即使云端失败，也不影响本地使用
+      try {
+        const nickname = this.userInfo?.nickName || ''
+        const auth = await this.cloudApi.login({ nickname })
+        if (auth?.openid) {
+          const now = Date.now()
+          this.userInfo = {
+            ...this.userInfo,
+            userId: auth.openid,
+            openid: auth.openid,
+            updatedAt: now,
+            lastLoginAt: now
+          }
+          this.saveUserInfo(this.userInfo)
+          console.log('[UserManager] 云端登录成功(openid)')
+        }
+      } catch (e) {
+        console.warn('[UserManager] 云端登录失败，继续使用本地模式：', e)
       }
       
     } catch (error) {
@@ -59,6 +83,13 @@ class UserManager {
    */
   getUserId() {
     return this.userInfo?.userId || null
+  }
+
+  /**
+   * 获取 openid（若已云端登录）
+   */
+  getOpenId() {
+    return this.userInfo?.openid || null
   }
 
   /**
@@ -100,6 +131,12 @@ class UserManager {
     try {
       // 清除用户信息
       this.userInfo = null
+      // 清除云端登录态
+      try {
+        this.cloudApi.clearAuth()
+      } catch (e) {
+        // ignore
+      }
       
       // 清除本地存储
       wx.removeStorageSync('userInfo')

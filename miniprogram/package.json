@@ -1,0 +1,8 @@
+{
+  "name": "kabangshou-plus-miniprogram",
+  "private": true,
+  "dependencies": {
+    "supabase-wechat-stable-v2": "^2.2.0"
+  }
+}
+

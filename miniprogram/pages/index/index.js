@@ -75,10 +75,9 @@ Page({
     // 加载卡片数据（首次加载尝试使用缓存）
     this.loadCardList({ showLoading: false }) // 首次加载不显示loading，优先使用缓存
     
-    // 延迟进行后台数据检查更新
-    setTimeout(() => {
-      this.checkAndUpdateCardList()
-    }, 500)
+    // 重要：启动阶段不要自动“静默更新”。
+    // 该逻辑在数据量较大或并发触发时容易导致 Service 线程被占用，从而触发开发者工具的 Error: timeout。
+    // 如需开启，可在用户手动触发“同步/刷新”时调用 checkAndUpdateCardList。
     
     // 检查是否首次进入，显示本地存储提示
     this.checkFirstTimeEntry()
@@ -122,10 +121,15 @@ Page({
         useCache: useCache, // 可配置是否使用缓存
         maxAge: 30 * 60 * 1000 // 30分钟缓存有效期
       })
+
+      // 只读取一次账单列表（避免每张卡都去读存储，数据多时会导致 Service 线程超时）
+      const { getBillDataManager } = require('../../utils/BillDataManager.js')
+      const billDataManager = getBillDataManager()
+      const billList = await billDataManager.getBillList({ useCache: true, maxAge: 30 * 60 * 1000 })
       
       // 为每个卡片添加隐匿后的卡号和分期欠款
       const processedCardList = await Promise.all(cardList.map(async (card) => {
-        const installmentDebt = await this.calculateInstallmentDebt(card)
+        const installmentDebt = this.calculateInstallmentDebtFromBills(card, billList)
         console.log(`卡片 ${card.name} 处理后的分期欠款:`, installmentDebt)
         return {
         ...card,
@@ -168,16 +172,32 @@ Page({
   
   // 后台检查并更新卡片列表（静默更新）
   async checkAndUpdateCardList() {
+    // 防重入：避免 onLoad/onShow 等多处触发造成并发执行
+    if (this._isCheckingAndUpdating) {
+      return
+    }
+    this._isCheckingAndUpdating = true
+
     try {
+      // 数据为空时不做静默更新（减少启动期开销）
+      if (!this.data || !Array.isArray(this.data.cardList) || this.data.cardList.length === 0) {
+        return
+      }
+
       // 不显示加载状态，静默获取最新数据
       const cardList = await this.cardDataManager.getCardList({
         useCache: false, // 强制从存储获取最新数据
         maxAge: 0 // 不使用缓存
       })
+
+      // 静默更新也只读取一次账单列表
+      const { getBillDataManager } = require('../../utils/BillDataManager.js')
+      const billDataManager = getBillDataManager()
+      const billList = await billDataManager.getBillList({ useCache: false, maxAge: 0 })
       
       // 为每个卡片添加隐匿后的卡号和分期欠款
       const processedCardList = await Promise.all(cardList.map(async (card) => {
-        const installmentDebt = await this.calculateInstallmentDebt(card)
+        const installmentDebt = this.calculateInstallmentDebtFromBills(card, billList)
         return {
         ...card,
           maskedCardNumber: this.maskCardNumber(card.cardNumber),
@@ -192,7 +212,10 @@ Page({
       
       // 比较数据是否有变化
       const currentCardList = this.data.cardList
-      const hasChanges = JSON.stringify(currentCardList) !== JSON.stringify(processedCardList)
+      // 避免 JSON.stringify 大对象造成卡顿：只做轻量比较
+      const hasChanges =
+        currentCardList.length !== processedCardList.length ||
+        currentCardList.some((c, i) => (c?.id || '') !== (processedCardList[i]?.id || '') || (c?.updatedAt || 0) !== (processedCardList[i]?.updatedAt || 0))
       
       if (hasChanges) {
         // 静默更新数据
@@ -205,6 +228,8 @@ Page({
     } catch (error) {
       console.error('后台更新卡片列表失败', error)
       // 静默失败，不显示错误提示
+    } finally {
+      this._isCheckingAndUpdating = false
     }
   },
   
@@ -223,8 +248,7 @@ Page({
     } else {
       // 静默更新用户信息，不显示加载状态
       this.initUserInfo()
-      // 后台检查是否有新数据，如果有则静默更新
-      this.checkAndUpdateCardList()
+      // 进入页面不再自动触发静默更新（避免 Error: timeout）
     }
   },
   
@@ -509,31 +533,25 @@ Page({
     }
   },
   
-  // 计算指定卡片的分期欠款总金额
-  async calculateInstallmentDebt(card) {
+  // 计算指定卡片的分期欠款总金额（传入账单列表，避免重复读存储）
+  calculateInstallmentDebtFromBills(card, billList) {
     try {
-      const { getBillDataManager } = require('../../utils/BillDataManager.js')
-      const billDataManager = getBillDataManager()
-      
-      // 强制重新获取数据，不使用缓存
-      const billList = await billDataManager.getBillList({ useCache: false })
-      
       if (!billList || billList.length === 0) {
         return '0'
       }
-      
+
       // 通过cardId匹配分期账单
       const cardBills = billList.filter(bill => {
         // 优先使用cardId匹配（新数据）
         if (bill.cardId && card.id) {
           return bill.cardId === card.id
         }
-        
+
         // 兼容旧数据：如果没有cardId，则使用名称匹配
         if (!bill.cardId && bill.cardName && card.name) {
           const billCardName = bill.cardName.toLowerCase()
           const cardName = card.name.toLowerCase()
-          
+
           // 银行关键词匹配
           const keywords = ['招商', '工商', '建设', '农业', '中国', '交通', '民生', '光大', '华夏', '平安', '兴业', '浦发', '中信', '广发']
           for (const keyword of keywords) {
@@ -542,19 +560,18 @@ Page({
             }
           }
         }
-        
+
         return false
       })
-      
+
       // 计算总的剩余还款金额
       let totalDebt = 0
       cardBills.forEach(bill => {
-        const remainingAmount = parseFloat(bill.remainingAmount?.toString().replace(/,/g, '')) || 0
+        const remainingAmount = parseFloat((bill.remainingAmount ?? '').toString().replace(/,/g, '')) || 0
         totalDebt += remainingAmount
       })
-      
+
       console.log(`卡片 ${card.name} 分期欠款: ¥${totalDebt.toLocaleString()}`)
-      
       return totalDebt > 0 ? totalDebt.toLocaleString() : '0'
     } catch (error) {
       console.error('计算分期欠款失败:', error)
@@ -573,20 +590,7 @@ Page({
     return maskedPart + lastFour
   },
 
-  // 页面显示时
-  onShow: function() {
-    console.log('卡包页面显示 - 强制刷新数据')
-    
-    // 设置自定义tabBar选中状态
-    if (typeof this.getTabBar === 'function' && this.getTabBar()) {
-      this.getTabBar().setData({
-        selected: 0
-      })
-    }
-    
-    // 强制刷新卡片数据，不使用缓存
-    this.loadCardList({ showLoading: false, useCache: false })
-  },
+  // 注意：本文件上方已实现 onShow，这里不要重复定义，否则会覆盖并导致额外的强制刷新与潜在超时
 
   // 分享给朋友
   onShareAppMessage: function() {

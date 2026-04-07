@@ -4,10 +4,12 @@
  */
 
 const { getStorageManager } = require('./StorageManager.js')
+const { getCloudApi } = require('./CloudApi.js')
 
 class CardDataManager {
   constructor() {
     this.storageManager = getStorageManager()
+    this.cloudApi = getCloudApi()
     this.CARD_LIST_KEY = 'cardList'
   }
 
@@ -18,6 +20,30 @@ class CardDataManager {
    */
   async getCardList(options = {}) {
     try {
+      // 云端优先：如果有登录态，则直接从云端拉取，并写回本地缓存
+      if (this.cloudApi.isEnabled()) {
+        const resp = await this.cloudApi.call('cards.list')
+        const rows = (resp && resp.data) ? resp.data : []
+
+        const cards = rows.map(r => ({
+          // 本地仍沿用原字段名，保持页面无感
+          id: r.id,
+          name: r.name,
+          cardNumber: r.card_number,
+          limit: r.card_limit != null ? String(r.card_limit) : '',
+          dueDate: r.due_day,
+          style: r.style || 'blue',
+          reminderEnabled: !!r.reminder_enabled,
+          reminderDays: r.reminder_days || 3,
+          createdAt: r.created_at ? new Date(r.created_at).getTime() : Date.now(),
+          updatedAt: r.updated_at ? new Date(r.updated_at).getTime() : Date.now()
+        }))
+
+        // 写回本地缓存（避免离线时空白）
+        await this.storageManager.setData(this.CARD_LIST_KEY, cards, { immediate: false })
+        return cards
+      }
+
       const cardList = await this.storageManager.getData(this.CARD_LIST_KEY, {
         useCache: true,
         maxAge: 30 * 60 * 1000, // 30分钟缓存
@@ -79,6 +105,24 @@ class CardDataManager {
         ...options
       })
 
+      // 云端同步：逐条 upsert（数据量通常不大；后续可优化为批量 RPC）
+      if (this.cloudApi.isEnabled()) {
+        for (const c of cleanedCardList) {
+          await this.cloudApi.call('cards.upsert', {
+            card: {
+              id: c.id && String(c.id).startsWith('card_') ? undefined : c.id, // 兼容旧本地id：不强行上云
+              name: c.name,
+              card_number: c.cardNumber,
+              card_limit: c.limit ? Number(String(c.limit).replace(/,/g, '')) : null,
+              due_day: Number(c.dueDate),
+              style: c.style || null,
+              reminder_enabled: !!c.reminderEnabled,
+              reminder_days: Number(c.reminderDays || 3)
+            }
+          })
+        }
+      }
+
       console.log(`[CardDataManager] 卡片列表已保存，共${cleanedCardList.length}张卡片`)
       return true
 
@@ -98,7 +142,35 @@ class CardDataManager {
       // 验证卡片数据
       const validCard = this.validateAndCleanCard(card)
       
-      // 生成唯一ID
+      // 云端优先：由云端生成 uuid id
+      if (this.cloudApi.isEnabled()) {
+        const resp = await this.cloudApi.call('cards.upsert', {
+          card: {
+            name: validCard.name,
+            card_number: validCard.cardNumber,
+            card_limit: validCard.limit ? Number(String(validCard.limit).replace(/,/g, '')) : null,
+            due_day: Number(validCard.dueDate),
+            style: validCard.style || null,
+            reminder_enabled: !!validCard.reminderEnabled,
+            reminder_days: Number(validCard.reminderDays || 3)
+          }
+        })
+        const r = resp?.data
+        const saved = {
+          ...validCard,
+          id: r.id,
+          createdAt: r.created_at ? new Date(r.created_at).getTime() : Date.now(),
+          updatedAt: r.updated_at ? new Date(r.updated_at).getTime() : Date.now()
+        }
+        // 写本地缓存
+        const cardList = await this.getCardList({ useCache: false })
+        cardList.push(saved)
+        await this.storageManager.setData(this.CARD_LIST_KEY, cardList, { immediate: false })
+        console.log(`[CardDataManager] 卡片添加成功(云端): ${saved.name}`)
+        return saved
+      }
+
+      // 本地模式：生成唯一ID
       validCard.id = this.generateCardId()
       validCard.createdAt = Date.now()
       validCard.updatedAt = Date.now()
@@ -132,15 +204,47 @@ class CardDataManager {
    */
   async updateCard(cardId, updates) {
     try {
+      // 验证更新数据
+      const validUpdates = this.validateAndCleanCard(updates, false)
+
+      // 云端优先
+      if (this.cloudApi.isEnabled()) {
+        const resp = await this.cloudApi.call('cards.upsert', {
+          card: {
+            id: cardId,
+            name: validUpdates.name,
+            card_number: validUpdates.cardNumber,
+            card_limit: validUpdates.limit ? Number(String(validUpdates.limit).replace(/,/g, '')) : null,
+            due_day: Number(validUpdates.dueDate),
+            style: validUpdates.style || null,
+            reminder_enabled: !!validUpdates.reminderEnabled,
+            reminder_days: Number(validUpdates.reminderDays || 3)
+          }
+        })
+
+        const r = resp?.data
+        // 更新本地缓存
+        const cardList = await this.getCardList({ useCache: false })
+        const cardIndex = cardList.findIndex(card => card.id == cardId)
+        const updatedCard = {
+          ...(cardIndex >= 0 ? cardList[cardIndex] : {}),
+          ...validUpdates,
+          id: r?.id || cardId,
+          updatedAt: r?.updated_at ? new Date(r.updated_at).getTime() : Date.now()
+        }
+        if (cardIndex >= 0) cardList[cardIndex] = updatedCard
+        else cardList.push(updatedCard)
+        await this.storageManager.setData(this.CARD_LIST_KEY, cardList, { immediate: false })
+        console.log(`[CardDataManager] 卡片更新成功(云端): ${updatedCard.name}`)
+        return updatedCard
+      }
+
       const cardList = await this.getCardList()
       const cardIndex = cardList.findIndex(card => card.id == cardId)
 
       if (cardIndex === -1) {
         throw new Error(`卡片不存在: ${cardId}`)
       }
-
-      // 验证更新数据
-      const validUpdates = this.validateAndCleanCard(updates, false)
       
       // 更新卡片
       const updatedCard = {
@@ -173,6 +277,17 @@ class CardDataManager {
    */
   async deleteCard(cardId) {
     try {
+      // 云端优先
+      if (this.cloudApi.isEnabled()) {
+        await this.cloudApi.call('cards.delete', { id: cardId })
+        const cardList = await this.getCardList({ useCache: false })
+        const idx = cardList.findIndex(c => c.id == cardId)
+        if (idx >= 0) cardList.splice(idx, 1)
+        await this.storageManager.setData(this.CARD_LIST_KEY, cardList, { immediate: false })
+        console.log(`[CardDataManager] 卡片删除成功(云端): ${cardId}`)
+        return true
+      }
+
       const cardList = await this.getCardList()
       const cardIndex = cardList.findIndex(card => card.id == cardId)
 

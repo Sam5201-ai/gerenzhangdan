@@ -1,8 +1,10 @@
 const { getStorageManager } = require('./StorageManager.js');
+const { getCloudApi } = require('./CloudApi.js');
 
 class BillDataManager {
   constructor() {
     this.storageManager = getStorageManager();
+    this.cloudApi = getCloudApi();
     this.BILL_LIST_KEY = 'installments';
     this.PAYMENT_HISTORY_KEY = 'payment_history';
   }
@@ -12,6 +14,32 @@ class BillDataManager {
     const { useCache = true, maxAge = 30 * 60 * 1000 } = options;
     
     try {
+      // 云端优先
+      if (this.cloudApi.isEnabled()) {
+        const resp = await this.cloudApi.call('bills.list');
+        const rows = (resp && resp.data) ? resp.data : [];
+        const bills = rows.map(r => ({
+          id: r.id,
+          cardId: r.card_id || '',
+          cardName: r.card_name || '',
+          totalAmount: r.total_amount != null ? String(r.total_amount) : '0',
+          totalCount: r.installment_count || 0,
+          monthlyPayment: r.per_payment_amount != null ? String(r.per_payment_amount) : '0',
+          paymentDate: r.payment_day != null ? String(r.payment_day) : '15',
+          paidCount: r.paid_installments || 0,
+          remainingCount: r.remaining_installments || 0,
+          paidAmount: r.paid_amount != null ? String(r.paid_amount) : '0',
+          remainingAmount: r.remaining_amount != null ? String(r.remaining_amount) : '0',
+          progress: 0,
+          status: r.status || 'active',
+          lastPaymentDate: r.last_payment_date || '',
+          createdAt: r.created_at || new Date().toISOString(),
+          updatedAt: r.updated_at || new Date().toISOString()
+        }));
+        await this.storageManager.setData(this.BILL_LIST_KEY, bills, { immediate: false });
+        return bills;
+      }
+
       let bills = await this.storageManager.getData(this.BILL_LIST_KEY, {
         useCache,
         maxAge
@@ -101,6 +129,30 @@ class BillDataManager {
         priority,
         markDirty
       });
+
+      // 云端同步：逐条 upsert
+      if (this.cloudApi.isEnabled()) {
+        for (const b of bills || []) {
+          await this.cloudApi.call('bills.upsert', {
+            bill: {
+              id: b.id && String(b.id).startsWith('bill_') ? undefined : b.id,
+              card_id: b.cardId || null,
+              card_name: b.cardName || null,
+              total_amount: b.totalAmount ? Number(String(b.totalAmount).replace(/,/g, '')) : 0,
+              installment_count: Number(b.totalCount || 0),
+              per_payment_amount: b.monthlyPayment ? Number(String(b.monthlyPayment).replace(/,/g, '')) : 0,
+              payment_day: Number(b.paymentDate || 15),
+              paid_installments: Number(b.paidCount || 0),
+              remaining_installments: Number(b.remainingCount || (Number(b.totalCount || 0) - Number(b.paidCount || 0))),
+              paid_amount: b.paidAmount ? Number(String(b.paidAmount).replace(/,/g, '')) : 0,
+              remaining_amount: b.remainingAmount ? Number(String(b.remainingAmount).replace(/,/g, '')) : 0,
+              last_payment_date: b.lastPaymentDate || null,
+              status: b.status || 'active'
+            }
+          });
+        }
+      }
+
       return true;
     } catch (error) {
       console.error('保存账单列表失败:', error);
@@ -111,27 +163,49 @@ class BillDataManager {
   // 添加账单
   async addBill(billData) {
     try {
+      const cleaned = this.validateAndCleanBill(billData);
+
+      if (this.cloudApi.isEnabled()) {
+        const resp = await this.cloudApi.call('bills.upsert', {
+          bill: {
+            card_id: cleaned.cardId || null,
+            card_name: cleaned.cardName || null,
+            total_amount: cleaned.totalAmount ? Number(String(cleaned.totalAmount).replace(/,/g, '')) : 0,
+            installment_count: Number(cleaned.totalCount || 0),
+            per_payment_amount: cleaned.monthlyPayment ? Number(String(cleaned.monthlyPayment).replace(/,/g, '')) : 0,
+            payment_day: Number(cleaned.paymentDate || 15),
+            paid_installments: Number(cleaned.paidCount || 0),
+            remaining_installments: Number(cleaned.remainingCount || (Number(cleaned.totalCount || 0) - Number(cleaned.paidCount || 0))),
+            paid_amount: cleaned.paidAmount ? Number(String(cleaned.paidAmount).replace(/,/g, '')) : 0,
+            remaining_amount: cleaned.remainingAmount ? Number(String(cleaned.remainingAmount).replace(/,/g, '')) : 0,
+            last_payment_date: cleaned.lastPaymentDate || null,
+            status: cleaned.status || 'active'
+          }
+        });
+
+        const r = resp?.data;
+        const newBill = {
+          ...cleaned,
+          id: r.id,
+          createdAt: r.created_at || new Date().toISOString(),
+          updatedAt: r.updated_at || new Date().toISOString()
+        };
+        const bills = await this.getBillList({ useCache: false });
+        bills.push(newBill);
+        await this.storageManager.setData(this.BILL_LIST_KEY, bills, { immediate: false });
+        return { success: true, bill: newBill };
+      }
+
       const bills = await this.getBillList({ useCache: false });
-      
       const newBill = {
-        ...this.validateAndCleanBill(billData),
+        ...cleaned,
         id: this.generateSecureId(),
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
-      
       bills.push(newBill);
-      
-      const success = await this.saveBillList(bills, {
-        immediate: true,
-        priority: 'high'
-      });
-      
-      if (success) {
-        return { success: true, bill: newBill };
-      } else {
-        return { success: false, error: '保存失败' };
-      }
+      const success = await this.saveBillList(bills, { immediate: true, priority: 'high' });
+      return success ? { success: true, bill: newBill } : { success: false, error: '保存失败' };
     } catch (error) {
       console.error('添加账单失败:', error);
       return { success: false, error: error.message };
@@ -141,31 +215,49 @@ class BillDataManager {
   // 更新账单
   async updateBill(billId, updateData) {
     try {
+      const cleaned = this.validateAndCleanBill(updateData);
+
+      if (this.cloudApi.isEnabled()) {
+        const resp = await this.cloudApi.call('bills.upsert', {
+          bill: {
+            id: billId,
+            card_id: cleaned.cardId || null,
+            card_name: cleaned.cardName || null,
+            total_amount: cleaned.totalAmount ? Number(String(cleaned.totalAmount).replace(/,/g, '')) : 0,
+            installment_count: Number(cleaned.totalCount || 0),
+            per_payment_amount: cleaned.monthlyPayment ? Number(String(cleaned.monthlyPayment).replace(/,/g, '')) : 0,
+            payment_day: Number(cleaned.paymentDate || 15),
+            paid_installments: Number(cleaned.paidCount || 0),
+            remaining_installments: Number(cleaned.remainingCount || (Number(cleaned.totalCount || 0) - Number(cleaned.paidCount || 0))),
+            paid_amount: cleaned.paidAmount ? Number(String(cleaned.paidAmount).replace(/,/g, '')) : 0,
+            remaining_amount: cleaned.remainingAmount ? Number(String(cleaned.remainingAmount).replace(/,/g, '')) : 0,
+            last_payment_date: cleaned.lastPaymentDate || null,
+            status: cleaned.status || 'active'
+          }
+        });
+
+        const r = resp?.data;
+        const bills = await this.getBillList({ useCache: false });
+        const idx = bills.findIndex(b => b.id === billId);
+        const updatedBill = {
+          ...(idx >= 0 ? bills[idx] : {}),
+          ...cleaned,
+          id: r?.id || billId,
+          updatedAt: r?.updated_at || new Date().toISOString()
+        };
+        if (idx >= 0) bills[idx] = updatedBill;
+        else bills.push(updatedBill);
+        await this.storageManager.setData(this.BILL_LIST_KEY, bills, { immediate: false });
+        return { success: true, bill: updatedBill };
+      }
+
       const bills = await this.getBillList({ useCache: false });
       const billIndex = bills.findIndex(bill => bill.id === billId);
-      
-      if (billIndex === -1) {
-        return { success: false, error: '账单不存在' };
-      }
-      
-      const updatedBill = {
-        ...bills[billIndex],
-        ...this.validateAndCleanBill(updateData),
-        updatedAt: new Date().toISOString()
-      };
-      
+      if (billIndex === -1) return { success: false, error: '账单不存在' };
+      const updatedBill = { ...bills[billIndex], ...cleaned, updatedAt: new Date().toISOString() };
       bills[billIndex] = updatedBill;
-      
-      const success = await this.saveBillList(bills, {
-        immediate: true,
-        priority: 'high'
-      });
-      
-      if (success) {
-        return { success: true, bill: updatedBill };
-      } else {
-        return { success: false, error: '保存失败' };
-      }
+      const success = await this.saveBillList(bills, { immediate: true, priority: 'high' });
+      return success ? { success: true, bill: updatedBill } : { success: false, error: '保存失败' };
     } catch (error) {
       console.error('更新账单失败:', error);
       return { success: false, error: error.message };
@@ -175,6 +267,15 @@ class BillDataManager {
   // 删除账单
   async deleteBill(billId) {
     try {
+      if (this.cloudApi.isEnabled()) {
+        await this.cloudApi.call('bills.delete', { id: billId });
+        const bills = await this.getBillList({ useCache: false });
+        const idx = bills.findIndex(b => b.id === billId);
+        if (idx >= 0) bills.splice(idx, 1);
+        await this.storageManager.setData(this.BILL_LIST_KEY, bills, { immediate: false });
+        return { success: true };
+      }
+
       const bills = await this.getBillList({ useCache: false });
       const billIndex = bills.findIndex(bill => bill.id === billId);
       
@@ -259,6 +360,21 @@ class BillDataManager {
         immediate: true,
         priority: 'high'
       });
+
+      // 云端追加（独立明细表）
+      if (this.cloudApi.isEnabled()) {
+        await this.cloudApi.call('repayments.add', {
+          record: {
+            bill_id: billId,
+            card_name: paymentData.cardName,
+            amount: paymentData.amount ? Number(String(paymentData.amount).replace(/,/g, '')) : 0,
+            payment_date: paymentData.paymentDate,
+            remaining_periods: (paymentData.totalPeriods != null && paymentData.currentPeriod != null)
+              ? Number(paymentData.totalPeriods) - Number(paymentData.currentPeriod)
+              : null
+          }
+        });
+      }
       
       return { success: true, record: newRecord };
     } catch (error) {
@@ -272,6 +388,22 @@ class BillDataManager {
     const { useCache = true, maxAge = 30 * 60 * 1000 } = options;
     
     try {
+      if (this.cloudApi.isEnabled()) {
+        const resp = await this.cloudApi.call('repayments.list');
+        const rows = (resp && resp.data) ? resp.data : [];
+        // 兼容页面当前字段结构（仍保留 billId / paymentDate / amount / cardName）
+        const history = rows.map(r => ({
+          id: r.id,
+          billId: r.bill_id || '',
+          amount: r.amount != null ? String(r.amount) : '0',
+          paymentDate: r.payment_date,
+          cardName: r.card_name || '',
+          createdAt: r.created_at || new Date().toISOString()
+        }));
+        await this.storageManager.setData(this.PAYMENT_HISTORY_KEY, history, { immediate: false });
+        return history;
+      }
+
       let history = await this.storageManager.getData(this.PAYMENT_HISTORY_KEY, {
         useCache,
         maxAge

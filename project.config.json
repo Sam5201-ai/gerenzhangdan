@@ -10,7 +10,7 @@
     "minified": false,
     "newFeature": true,
     "coverView": true,
-    "nodeModules": false,
+    "nodeModules": true,
     "autoAudits": false,
     "showShadowRootInWxmlPanel": true,
     "scopeDataCheck": false,
@@ -46,7 +46,7 @@
   },
   "appid": "wx4384501a75bdfcba",
   "projectname": "quickstart-wx-cloud",
-  "libVersion": "3.9.2",
+  "libVersion": "3.10.3",
   "cloudfunctionTemplateRoot": "cloudfunctionTemplate/",
   "condition": {
     "search": {

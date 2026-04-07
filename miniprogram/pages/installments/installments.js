@@ -373,8 +373,8 @@ Page({
       
       this.setData({ installments });
       
-      // 使用BillDataManager保存数据
-      await this.saveBillData(installments);
+      // 云端/本地统一：更新当前账单
+      await this.billDataManager.updateBill(installment.id, installment);
       
       // 添加还款记录到历史记录中
       try {
@@ -422,8 +422,8 @@ Page({
       
       this.setData({ installments });
       
-      // 使用BillDataManager保存数据
-      await this.saveBillData(installments);
+      // 云端/本地统一：更新当前账单
+      await this.billDataManager.updateBill(installment.id, installment);
       
       // 删除对应的还款记录
       try {
@@ -535,12 +535,9 @@ Page({
       content: '确定要删除这个分期账单吗？',
       success: async (res) => {
         if (res.confirm) {
-          const installments = this.data.installments;
-          installments.splice(index, 1);
-          this.setData({ installments });
-          
-          // 使用BillDataManager保存数据
-          await this.saveBillData(installments);
+          // 云端/本地统一：直接删
+          await this.billDataManager.deleteBill(id);
+          await this.loadInstallments();
           this.calculateStats();
           
           wx.showToast({
@@ -974,29 +971,31 @@ Page({
       status: paidCount >= totalCount ? 'completed' : 'active'
     };
     
-    if (this.data.editingInstallment) {
-      // 编辑模式
-      const index = installments.findIndex(item => item.id === this.data.editingInstallment.id);
-      if (index >= 0) {
-        installments[index] = { ...installments[index], ...installmentData };
-      }
-    } else {
-      // 添加模式 - 使用安全的ID生成
-      const newId = this.generateSecureId();
-      installments.push({ id: newId, ...installmentData });
-    }
-    
-    this.setData({ installments });
-    
-    // 使用BillDataManager保存数据
     try {
-      await this.billDataManager.saveBillList(installments);
-      console.log('[分期页面] 账单数据保存成功');
+      if (this.data.editingInstallment) {
+        // 编辑模式：直接更新该账单
+        const billId = this.data.editingInstallment.id;
+        const res = await this.billDataManager.updateBill(billId, {
+          ...this.data.editingInstallment,
+          ...installmentData
+        });
+        if (!res || !res.success) {
+          throw new Error(res?.error || '保存失败');
+        }
+      } else {
+        // 添加模式：由 BillDataManager 生成云端/本地ID
+        const res = await this.billDataManager.addBill(installmentData);
+        if (!res || !res.success) {
+          throw new Error(res?.error || '保存失败');
+        }
+      }
     } catch (error) {
-      console.error('[分期页面] 账单数据保存失败:', error);
-      wx.showToast({ title: '保存失败', icon: 'error' });
+      console.error('[分期页面] 账单保存失败:', error);
+      wx.showToast({ title: error.message || '保存失败', icon: 'none' });
       return;
     }
+
+    await this.loadInstallments();
     
     this.calculateStats();
     this.hideInstallmentPopup();

@@ -4,6 +4,7 @@ class BillDataManager {
   constructor() {
     this.storageManager = getStorageManager();
     this.BILL_LIST_KEY = 'installments';
+    this.PAYMENT_HISTORY_KEY = 'payment_history';
   }
   
   // 获取账单列表
@@ -233,6 +234,104 @@ class BillDataManager {
   // 生成安全ID
   generateSecureId() {
     return 'bill_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+  }
+  
+  // 添加还款记录
+  async addPaymentRecord(billId, paymentData) {
+    try {
+      const paymentHistory = await this.getPaymentHistory({ useCache: false });
+      
+      const newRecord = {
+        id: this.generatePaymentId(),
+        billId: billId,
+        amount: paymentData.amount,
+        paymentDate: paymentData.paymentDate,
+        currentPeriod: paymentData.currentPeriod,
+        totalPeriods: paymentData.totalPeriods,
+        cardName: paymentData.cardName,
+        cardNumber: paymentData.cardNumber || '',
+        createdAt: new Date().toISOString()
+      };
+      
+      paymentHistory.push(newRecord);
+      
+      await this.storageManager.setData(this.PAYMENT_HISTORY_KEY, paymentHistory, {
+        immediate: true,
+        priority: 'high'
+      });
+      
+      return { success: true, record: newRecord };
+    } catch (error) {
+      console.error('添加还款记录失败:', error);
+      return { success: false, error: error.message };
+    }
+  }
+  
+  // 获取还款历史记录
+  async getPaymentHistory(options = {}) {
+    const { useCache = true, maxAge = 30 * 60 * 1000 } = options;
+    
+    try {
+      let history = await this.storageManager.getData(this.PAYMENT_HISTORY_KEY, {
+        useCache,
+        maxAge
+      });
+      
+      if (!history || !Array.isArray(history)) {
+        history = [];
+      }
+      
+      return history;
+    } catch (error) {
+      console.error('获取还款历史失败:', error);
+      return [];
+    }
+  }
+  
+  // 根据账单ID获取还款记录
+  async getPaymentRecordsByBillId(billId) {
+    try {
+      const history = await this.getPaymentHistory();
+      return history.filter(record => record.billId === billId);
+    } catch (error) {
+      console.error('获取账单还款记录失败:', error);
+      return [];
+    }
+  }
+  
+  // 删除还款记录（用于撤销还款）
+  async removeLastPaymentRecord(billId) {
+    try {
+      const paymentHistory = await this.getPaymentHistory({ useCache: false });
+      
+      // 找到该账单的最后一条还款记录
+      const billRecords = paymentHistory.filter(record => record.billId === billId);
+      if (billRecords.length === 0) {
+        return { success: false, error: '没有找到还款记录' };
+      }
+      
+      // 按时间排序，找到最新的记录
+      billRecords.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      const lastRecord = billRecords[0];
+      
+      // 从历史记录中删除
+      const updatedHistory = paymentHistory.filter(record => record.id !== lastRecord.id);
+      
+      await this.storageManager.setData(this.PAYMENT_HISTORY_KEY, updatedHistory, {
+        immediate: true,
+        priority: 'high'
+      });
+      
+      return { success: true, removedRecord: lastRecord };
+    } catch (error) {
+      console.error('删除还款记录失败:', error);
+      return { success: false, error: error.message };
+    }
+  }
+  
+  // 生成还款记录ID
+  generatePaymentId() {
+    return 'payment_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
   }
 }
 

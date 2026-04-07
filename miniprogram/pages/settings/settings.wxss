@@ -844,3 +844,18 @@ page .menu-item {
   color: white;
   font-weight: bold;
 }
+
+/* 本地存储提示样式 */
+.storage-notice {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 10px;
+}
+
+.storage-notice-text {
+  font-size: 24rpx;
+  font-weight: 600;
+  color: #999;
+  letter-spacing: 1rpx;
+}

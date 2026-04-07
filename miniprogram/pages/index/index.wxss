@@ -29,6 +29,7 @@
   width: 80px;
   display: flex;
   align-items: center;
+  justify-content: flex-end;
 }
 
 .navbar-title {
@@ -832,4 +833,131 @@ page {
 /* 隐藏样式 */
 .hidden {
   display: none !important;
+}
+
+/* 帮助图标样式 */
+.help-icon {
+  width: 48rpx;
+  height: 48rpx;
+  border-radius: 50%;
+  background: white;
+  border: 2rpx solid #667eea;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.help-icon:active {
+  transform: scale(0.95);
+  background: rgba(102, 126, 234, 0.05);
+}
+
+.help-icon-text {
+  font-size: 28rpx;
+  font-weight: 600;
+  color: #667eea;
+  line-height: 1;
+}
+
+/* 本地存储提示弹窗样式 */
+.storage-tip-popup {
+  max-height: 75vh;
+}
+
+.storage-tip-content {
+  padding: 40rpx 50rpx 50rpx;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 30rpx;
+}
+
+.tip-icon {
+  font-size: 120rpx;
+  margin-bottom: 10rpx;
+  animation: bounce 2s infinite;
+}
+
+@keyframes bounce {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10rpx);
+  }
+}
+
+.tip-section {
+  display: flex;
+  flex-direction: column;
+  gap: 20rpx;
+  text-align: center;
+  width: 100%;
+}
+
+.tip-title {
+  font-size: 36rpx;
+  font-weight: 700;
+  color: #333;
+  line-height: 1.4;
+}
+
+.tip-desc {
+  font-size: 28rpx;
+  color: #666;
+  line-height: 1.6;
+}
+
+.tip-list {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 24rpx;
+  padding: 30rpx;
+  background: #f8f9fa;
+  border-radius: 16rpx;
+  border-left: 6rpx solid #667eea;
+}
+
+.tip-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 16rpx;
+}
+
+.tip-bullet {
+  font-size: 32rpx;
+  color: #667eea;
+  font-weight: 700;
+  line-height: 1.4;
+  flex-shrink: 0;
+}
+
+.tip-text {
+  font-size: 28rpx;
+  color: #333;
+  line-height: 1.6;
+  flex: 1;
+  text-align: left;
+}
+
+.tip-confirm-btn {
+  width: 100%;
+  padding: 28rpx;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  font-size: 32rpx;
+  font-weight: 600;
+  border-radius: 16rpx;
+  border: none;
+  margin-top: 20rpx;
+  box-shadow: 0 8rpx 24rpx rgba(102, 126, 234, 0.3);
+  transition: all 0.3s ease;
+}
+
+.tip-confirm-btn:active {
+  transform: scale(0.98);
+  box-shadow: 0 4rpx 12rpx rgba(102, 126, 234, 0.25);
 }

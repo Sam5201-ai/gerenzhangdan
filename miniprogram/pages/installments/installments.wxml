@@ -111,7 +111,7 @@
       </view>
 
       <!-- 表单内容 -->
-      <scroll-view class="form-content" scroll-y="true">
+      <scroll-view class="form-content" scroll-y="true" scroll-top="{{popupScrollTop}}">
         <view class="form-item">
           <view class="form-label">
             <text>选择卡片</text>

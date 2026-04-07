@@ -1,0 +1,151 @@
+<!--还款记录页面-->
+<wxs module="filters">
+  var formatAmount = function(amount) {
+    if (!amount && amount !== 0) {
+      return '0.00';
+    }
+    var num = parseFloat(amount);
+    if (isNaN(num)) {
+      return '0.00';
+    }
+    return num.toFixed(2);
+  };
+  
+  module.exports = {
+    formatAmount: formatAmount
+  };
+</wxs>
+
+<view class="container">
+  <!-- 自定义导航栏 -->
+  <view class="custom-navbar" style="padding-top: {{statusBarHeight}}px;">
+    <view class="navbar-content">
+      <view class="navbar-left" bindtap="goBack">
+        <text class="back-icon">‹</text>
+      </view>
+      <text class="navbar-title">还款记录</text>
+      <view class="navbar-right"></view>
+    </view>
+  </view>
+
+  <!-- 筛选按钮区域 -->
+  <view class="filter-bar" style="top: {{statusBarHeight + 44}}px;">
+    <view class="filter-buttons">
+      <view class="filter-btn" bindtap="showMonthFilterPopup">
+        <text class="filter-text">{{selectedMonthText}}</text>
+        <text class="filter-arrow">▼</text>
+      </view>
+      <view class="filter-btn" bindtap="showBankFilterPopup">
+        <text class="filter-text">{{selectedBankText}}</text>
+        <text class="filter-arrow">▼</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 还款记录列表 -->
+  <scroll-view class="records-container" scroll-y="true" show-scrollbar="{{false}}" style="padding-top: {{statusBarHeight + 44 + 60}}px;">
+    <view wx:if="{{!isEmpty}}">
+      <!-- 按月份分组的记录 -->
+      <view wx:for="{{groupedRecords}}" wx:key="month" class="month-section">
+        <view class="month-header">
+          <text class="month-title">{{item.monthText}}</text>
+          <text class="month-total">共还款 ¥{{filters.formatAmount(item.totalAmount)}}</text>
+        </view>
+
+        <!-- 还款记录卡片 -->
+        <view wx:for="{{item.records}}" wx:key="id" wx:for-item="record" class="payment-card">
+          <view class="card-main">
+            <view class="card-left">
+              <view class="card-icon card-gradient-{{record.cardStyle}}">
+                <text class="icon-text">💳</text>
+              </view>
+              <view class="card-info">
+                <text class="bank-name">{{record.bankName}}</text>
+                <text class="card-number">{{record.cardNumber}}</text>
+              </view>
+            </view>
+            <view class="card-right">
+              <text class="amount">¥{{filters.formatAmount(record.amount)}}</text>
+              <view class="status-tag">已还款</view>
+            </view>
+          </view>
+          <view class="card-footer">
+            <text class="period-info">第 {{record.currentPeriod}}/{{record.totalPeriods}} 期</text>
+            <text class="time-info">{{record.formattedTime}}</text>
+          </view>
+        </view>
+      </view>
+    </view>
+
+    <!-- 空状态 -->
+    <view wx:if="{{isEmpty}}" class="empty-state">
+      <view class="empty-icon">📋</view>
+      <text class="empty-title">暂无还款记录</text>
+      <text class="empty-desc">完成分期还款后将在此显示</text>
+    </view>
+  </scroll-view>
+
+  <!-- 月份筛选弹窗 -->
+  <view class="popup-overlay {{showMonthFilter ? 'show' : ''}}" bindtap="hideMonthFilter">
+    <view class="popup-bottom" catchtap="stopPropagation">
+      <view class="popup-header-fixed">
+        <text class="popup-title">选择月份</text>
+        <text class="popup-close" bindtap="hideMonthFilter">✕</text>
+      </view>
+      
+      <view class="popup-content">
+        <!-- 年月选择器 -->
+        <view class="date-picker-group">
+          <view class="picker-item">
+            <text class="picker-label">年份</text>
+            <picker mode="selector" range="{{yearList}}" value="{{yearList.indexOf(selectedYear)}}" bindchange="onYearChange">
+              <view class="picker-value">
+                <text>{{selectedYear}}年</text>
+                <text class="picker-arrow">›</text>
+              </view>
+            </picker>
+          </view>
+          <view class="picker-item">
+            <text class="picker-label">月份</text>
+            <picker mode="selector" range="{{monthList}}" value="{{monthList.indexOf(selectedMonthNum)}}" bindchange="onMonthChange">
+              <view class="picker-value">
+                <text>{{selectedMonthNum}}月</text>
+                <text class="picker-arrow">›</text>
+              </view>
+            </picker>
+          </view>
+        </view>
+
+        <!-- 操作按钮 -->
+        <view class="popup-buttons">
+          <button class="btn-reset" bindtap="resetMonthFilter">全部月份</button>
+          <button class="btn-confirm" bindtap="confirmMonthFilter">确定</button>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <!-- 银行筛选弹窗 -->
+  <view class="popup-overlay {{showBankFilter ? 'show' : ''}}" bindtap="hideBankFilter">
+    <view class="popup-bottom" catchtap="stopPropagation">
+      <view class="popup-header-fixed">
+        <text class="popup-title">选择银行</text>
+        <text class="popup-close" bindtap="hideBankFilter">✕</text>
+      </view>
+      
+      <scroll-view class="popup-scroll-content" scroll-y="true" show-scrollbar="{{false}}">
+        <view class="bank-list">
+          <view class="bank-item {{selectedBank === 'all' ? 'selected' : ''}}" bindtap="selectBank" data-bank="all">
+            <text class="bank-text">全部银行</text>
+            <text wx:if="{{selectedBank === 'all'}}" class="check-icon">✓</text>
+          </view>
+          <view wx:for="{{bankList}}" wx:key="*this" class="bank-item {{selectedBank === item ? 'selected' : ''}}" bindtap="selectBank" data-bank="{{item}}">
+            <text class="bank-text">{{item}}</text>
+            <text wx:if="{{selectedBank === item}}" class="check-icon">✓</text>
+          </view>
+        </view>
+      </scroll-view>
+    </view>
+  </view>
+</view>
+

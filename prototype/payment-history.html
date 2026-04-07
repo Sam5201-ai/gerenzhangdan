@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>还款记录</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        
+        *::-webkit-scrollbar {
+            display: none;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            overflow-x: hidden;
+            -webkit-overflow-scrolling: touch;
+        }
+        
+        .gradient-purple {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        
+        .card-gradient-blue {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        
+        .card-gradient-green {
+            background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+        }
+        
+        .card-gradient-purple {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+        }
+        
+        .card-gradient-orange {
+            background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+        }
+        
+        .filter-dropdown {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease-out;
+        }
+        
+        .filter-dropdown.active {
+            max-height: 300px;
+        }
+        
+        .month-section {
+            animation: fadeIn 0.3s ease-in;
+        }
+        
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <!-- 顶部导航栏 -->
+    <div class="gradient-purple text-white px-4 py-3 sticky top-0 z-50 shadow-lg">
+        <div class="flex items-center justify-between">
+            <button class="p-2" onclick="window.parent.postMessage('back', '*')">
+                <i class="fas fa-arrow-left text-xl"></i>
+            </button>
+            <h1 class="text-lg font-semibold">还款记录</h1>
+            <div class="w-10"></div>
+        </div>
+    </div>
+
+    <!-- 筛选区域 -->
+    <div class="bg-white shadow-sm sticky top-[60px] z-40">
+        <div class="px-4 py-3">
+            <div class="flex gap-2">
+                <!-- 月份筛选 -->
+                <div class="flex-1 relative">
+                    <button onclick="toggleFilter('month')" class="w-full px-4 py-2.5 bg-gray-50 rounded-xl flex items-center justify-between border border-gray-200 hover:border-purple-300 transition-colors">
+                        <span class="text-sm text-gray-700" id="month-selected">全部月份</span>
+                        <i class="fas fa-chevron-down text-gray-400 text-xs transition-transform" id="month-icon"></i>
+                    </button>
+                    <div id="month-filter" class="filter-dropdown absolute top-full left-0 right-0 mt-1 bg-white rounded-xl shadow-lg border border-gray-100 z-50">
+                        <div class="max-h-64 overflow-y-auto p-2">
+                            <button onclick="selectMonth('all')" class="w-full px-4 py-2.5 text-left text-sm hover:bg-purple-50 rounded-lg transition-colors">全部月份</button>
+                            <button onclick="selectMonth('2025-01')" class="w-full px-4 py-2.5 text-left text-sm hover:bg-purple-50 rounded-lg transition-colors">2025年1月</button>
+                            <button onclick="selectMonth('2024-12')" class="w-full px-4 py-2.5 text-left text-sm hover:bg-purple-50 rounded-lg transition-colors">2024年12月</button>
+                            <button onclick="selectMonth('2024-11')" class="w-full px-4 py-2.5 text-left text-sm hover:bg-purple-50 rounded-lg transition-colors">2024年11月</button>
+                            <button onclick="selectMonth('2024-10')" class="w-full px-4 py-2.5 text-left text-sm hover:bg-purple-50 rounded-lg transition-colors">2024年10月</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 银行筛选 -->
+                <div class="flex-1 relative">
+                    <button onclick="toggleFilter('bank')" class="w-full px-4 py-2.5 bg-gray-50 rounded-xl flex items-center justify-between border border-gray-200 hover:border-purple-300 transition-colors">
+                        <span class="text-sm text-gray-700" id="bank-selected">全部银行</span>
+                        <i class="fas fa-chevron-down text-gray-400 text-xs transition-transform" id="bank-icon"></i>
+                    </button>
+                    <div id="bank-filter" class="filter-dropdown absolute top-full left-0 right-0 mt-1 bg-white rounded-xl shadow-lg border border-gray-100 z-50">
+                        <div class="max-h-64 overflow-y-auto p-2">
+                            <button onclick="selectBank('all')" class="w-full px-4 py-2.5 text-left text-sm hover:bg-purple-50 rounded-lg transition-colors">全部银行</button>
+                            <button onclick="selectBank('招商银行')" class="w-full px-4 py-2.5 text-left text-sm hover:bg-purple-50 rounded-lg transition-colors">招商银行</button>
+                            <button onclick="selectBank('工商银行')" class="w-full px-4 py-2.5 text-left text-sm hover:bg-purple-50 rounded-lg transition-colors">工商银行</button>
+                            <button onclick="selectBank('建设银行')" class="w-full px-4 py-2.5 text-left text-sm hover:bg-purple-50 rounded-lg transition-colors">建设银行</button>
+                            <button onclick="selectBank('中国银行')" class="w-full px-4 py-2.5 text-left text-sm hover:bg-purple-50 rounded-lg transition-colors">中国银行</button>
+                            <button onclick="selectBank('交通银行')" class="w-full px-4 py-2.5 text-left text-sm hover:bg-purple-50 rounded-lg transition-colors">交通银行</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 还款记录列表 -->
+    <div class="px-4 py-4 pb-20" id="payment-list">
+        <!-- 2025年1月 -->
+        <div class="month-section mb-6">
+            <div class="flex items-center justify-between mb-3">
+                <h2 class="text-base font-semibold text-gray-800">2025年1月</h2>
+                <span class="text-sm text-gray-500">共还款 ¥5,800</span>
+            </div>
+            
+            <!-- 还款记录卡片1 -->
+            <div class="bg-white rounded-2xl p-4 mb-3 shadow-sm border border-gray-100">
+                <div class="flex items-start justify-between mb-3">
+                    <div class="flex items-center gap-3">
+                        <div class="w-12 h-12 card-gradient-blue rounded-xl flex items-center justify-center">
+                            <i class="fas fa-credit-card text-white text-xl"></i>
+                        </div>
+                        <div>
+                            <h3 class="font-semibold text-gray-800 text-base">招商银行</h3>
+                            <p class="text-xs text-gray-500 mt-0.5">经典白金卡</p>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-xl font-bold text-purple-600">¥2,000</p>
+                        <span class="inline-block mt-1 px-2 py-0.5 bg-green-50 text-green-600 text-xs rounded-full">已还款</span>
+                    </div>
+                </div>
+                
+                <div class="flex items-center justify-between pt-3 border-t border-gray-100">
+                    <div class="flex items-center gap-4 text-xs text-gray-600">
+                        <span><i class="fas fa-calendar-check mr-1 text-gray-400"></i>第 3/12 期</span>
+                        <span><i class="fas fa-clock mr-1 text-gray-400"></i>2025-01-15 14:30</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 还款记录卡片2 -->
+            <div class="bg-white rounded-2xl p-4 mb-3 shadow-sm border border-gray-100">
+                <div class="flex items-start justify-between mb-3">
+                    <div class="flex items-center gap-3">
+                        <div class="w-12 h-12 card-gradient-green rounded-xl flex items-center justify-center">
+                            <i class="fas fa-credit-card text-white text-xl"></i>
+                        </div>
+                        <div>
+                            <h3 class="font-semibold text-gray-800 text-base">工商银行</h3>
+                            <p class="text-xs text-gray-500 mt-0.5">星座卡</p>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-xl font-bold text-purple-600">¥1,800</p>
+                        <span class="inline-block mt-1 px-2 py-0.5 bg-green-50 text-green-600 text-xs rounded-full">已还款</span>
+                    </div>
+                </div>
+                
+                <div class="flex items-center justify-between pt-3 border-t border-gray-100">
+                    <div class="flex items-center gap-4 text-xs text-gray-600">
+                        <span><i class="fas fa-calendar-check mr-1 text-gray-400"></i>第 6/24 期</span>
+                        <span><i class="fas fa-clock mr-1 text-gray-400"></i>2025-01-10 09:15</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 还款记录卡片3 -->
+            <div class="bg-white rounded-2xl p-4 mb-3 shadow-sm border border-gray-100">
+                <div class="flex items-start justify-between mb-3">
+                    <div class="flex items-center gap-3">
+                        <div class="w-12 h-12 card-gradient-blue rounded-xl flex items-center justify-center">
+                            <i class="fas fa-credit-card text-white text-xl"></i>
+                        </div>
+                        <div>
+                            <h3 class="font-semibold text-gray-800 text-base">招商银行</h3>
+                            <p class="text-xs text-gray-500 mt-0.5">经典白金卡</p>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-xl font-bold text-purple-600">¥2,000</p>
+                        <span class="inline-block mt-1 px-2 py-0.5 bg-green-50 text-green-600 text-xs rounded-full">已还款</span>
+                    </div>
+                </div>
+                
+                <div class="flex items-center justify-between pt-3 border-t border-gray-100">
+                    <div class="flex items-center gap-4 text-xs text-gray-600">
+                        <span><i class="fas fa-calendar-check mr-1 text-gray-400"></i>第 2/12 期</span>
+                        <span><i class="fas fa-clock mr-1 text-gray-400"></i>2025-01-05 16:20</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 2024年12月 -->
+        <div class="month-section mb-6">
+            <div class="flex items-center justify-between mb-3">
+                <h2 class="text-base font-semibold text-gray-800">2024年12月</h2>
+                <span class="text-sm text-gray-500">共还款 ¥7,500</span>
+            </div>
+            
+            <!-- 还款记录卡片4 -->
+            <div class="bg-white rounded-2xl p-4 mb-3 shadow-sm border border-gray-100">
+                <div class="flex items-start justify-between mb-3">
+                    <div class="flex items-center gap-3">
+                        <div class="w-12 h-12 card-gradient-purple rounded-xl flex items-center justify-center">
+                            <i class="fas fa-credit-card text-white text-xl"></i>
+                        </div>
+                        <div>
+                            <h3 class="font-semibold text-gray-800 text-base">建设银行</h3>
+                            <p class="text-xs text-gray-500 mt-0.5">龙卡</p>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-xl font-bold text-purple-600">¥3,500</p>
+                        <span class="inline-block mt-1 px-2 py-0.5 bg-green-50 text-green-600 text-xs rounded-full">已还款</span>
+                    </div>
+                </div>
+                
+                <div class="flex items-center justify-between pt-3 border-t border-gray-100">
+                    <div class="flex items-center gap-4 text-xs text-gray-600">
+                        <span><i class="fas fa-calendar-check mr-1 text-gray-400"></i>第 8/12 期</span>
+                        <span><i class="fas fa-clock mr-1 text-gray-400"></i>2024-12-20 11:45</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 还款记录卡片5 -->
+            <div class="bg-white rounded-2xl p-4 mb-3 shadow-sm border border-gray-100">
+                <div class="flex items-start justify-between mb-3">
+                    <div class="flex items-center gap-3">
+                        <div class="w-12 h-12 card-gradient-blue rounded-xl flex items-center justify-center">
+                            <i class="fas fa-credit-card text-white text-xl"></i>
+                        </div>
+                        <div>
+                            <h3 class="font-semibold text-gray-800 text-base">招商银行</h3>
+                            <p class="text-xs text-gray-500 mt-0.5">经典白金卡</p>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-xl font-bold text-purple-600">¥2,000</p>
+                        <span class="inline-block mt-1 px-2 py-0.5 bg-green-50 text-green-600 text-xs rounded-full">已还款</span>
+                    </div>
+                </div>
+                
+                <div class="flex items-center justify-between pt-3 border-t border-gray-100">
+                    <div class="flex items-center gap-4 text-xs text-gray-600">
+                        <span><i class="fas fa-calendar-check mr-1 text-gray-400"></i>第 1/12 期</span>
+                        <span><i class="fas fa-clock mr-1 text-gray-400"></i>2024-12-15 13:30</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 还款记录卡片6 -->
+            <div class="bg-white rounded-2xl p-4 mb-3 shadow-sm border border-gray-100">
+                <div class="flex items-start justify-between mb-3">
+                    <div class="flex items-center gap-3">
+                        <div class="w-12 h-12 card-gradient-orange rounded-xl flex items-center justify-center">
+                            <i class="fas fa-credit-card text-white text-xl"></i>
+                        </div>
+                        <div>
+                            <h3 class="font-semibold text-gray-800 text-base">交通银行</h3>
+                            <p class="text-xs text-gray-500 mt-0.5">标准卡</p>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-xl font-bold text-purple-600">¥2,000</p>
+                        <span class="inline-block mt-1 px-2 py-0.5 bg-green-50 text-green-600 text-xs rounded-full">已还款</span>
+                    </div>
+                </div>
+                
+                <div class="flex items-center justify-between pt-3 border-t border-gray-100">
+                    <div class="flex items-center gap-4 text-xs text-gray-600">
+                        <span><i class="fas fa-calendar-check mr-1 text-gray-400"></i>第 4/6 期</span>
+                        <span><i class="fas fa-clock mr-1 text-gray-400"></i>2024-12-08 10:20</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 2024年11月 -->
+        <div class="month-section mb-6">
+            <div class="flex items-center justify-between mb-3">
+                <h2 class="text-base font-semibold text-gray-800">2024年11月</h2>
+                <span class="text-sm text-gray-500">共还款 ¥3,800</span>
+            </div>
+            
+            <!-- 还款记录卡片7 -->
+            <div class="bg-white rounded-2xl p-4 mb-3 shadow-sm border border-gray-100">
+                <div class="flex items-start justify-between mb-3">
+                    <div class="flex items-center gap-3">
+                        <div class="w-12 h-12 card-gradient-green rounded-xl flex items-center justify-center">
+                            <i class="fas fa-credit-card text-white text-xl"></i>
+                        </div>
+                        <div>
+                            <h3 class="font-semibold text-gray-800 text-base">工商银行</h3>
+                            <p class="text-xs text-gray-500 mt-0.5">星座卡</p>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-xl font-bold text-purple-600">¥1,800</p>
+                        <span class="inline-block mt-1 px-2 py-0.5 bg-green-50 text-green-600 text-xs rounded-full">已还款</span>
+                    </div>
+                </div>
+                
+                <div class="flex items-center justify-between pt-3 border-t border-gray-100">
+                    <div class="flex items-center gap-4 text-xs text-gray-600">
+                        <span><i class="fas fa-calendar-check mr-1 text-gray-400"></i>第 5/24 期</span>
+                        <span><i class="fas fa-clock mr-1 text-gray-400"></i>2024-11-10 15:45</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 还款记录卡片8 -->
+            <div class="bg-white rounded-2xl p-4 mb-3 shadow-sm border border-gray-100">
+                <div class="flex items-start justify-between mb-3">
+                    <div class="flex items-center gap-3">
+                        <div class="w-12 h-12 card-gradient-blue rounded-xl flex items-center justify-center">
+                            <i class="fas fa-credit-card text-white text-xl"></i>
+                        </div>
+                        <div>
+                            <h3 class="font-semibold text-gray-800 text-base">招商银行</h3>
+                            <p class="text-xs text-gray-500 mt-0.5">经典白金卡</p>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-xl font-bold text-purple-600">¥2,000</p>
+                        <span class="inline-block mt-1 px-2 py-0.5 bg-green-50 text-green-600 text-xs rounded-full">已还款</span>
+                    </div>
+                </div>
+                
+                <div class="flex items-center justify-between pt-3 border-t border-gray-100">
+                    <div class="flex items-center gap-4 text-xs text-gray-600">
+                        <span><i class="fas fa-calendar-check mr-1 text-gray-400"></i>第 12/12 期</span>
+                        <span><i class="fas fa-clock mr-1 text-gray-400"></i>2024-11-15 14:20</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 空状态 -->
+    <div id="empty-state" class="hidden px-4 py-20 text-center">
+        <div class="text-6xl mb-4">📋</div>
+        <p class="text-gray-500 text-sm">暂无还款记录</p>
+        <p class="text-gray-400 text-xs mt-2">完成分期还款后将在此显示</p>
+    </div>
+
+    <script>
+        let activeFilter = null;
+        let selectedMonth = 'all';
+        let selectedBank = 'all';
+        
+        function toggleFilter(type) {
+            const filterId = type + '-filter';
+            const iconId = type + '-icon';
+            const filterEl = document.getElementById(filterId);
+            const iconEl = document.getElementById(iconId);
+            
+            if (activeFilter && activeFilter !== type) {
+                // 关闭其他筛选器
+                const otherFilter = document.getElementById(activeFilter + '-filter');
+                const otherIcon = document.getElementById(activeFilter + '-icon');
+                otherFilter.classList.remove('active');
+                otherIcon.style.transform = 'rotate(0deg)';
+            }
+            
+            if (activeFilter === type) {
+                // 关闭当前筛选器
+                filterEl.classList.remove('active');
+                iconEl.style.transform = 'rotate(0deg)';
+                activeFilter = null;
+            } else {
+                // 打开当前筛选器
+                filterEl.classList.add('active');
+                iconEl.style.transform = 'rotate(180deg)';
+                activeFilter = type;
+            }
+        }
+        
+        function selectMonth(month) {
+            selectedMonth = month;
+            const text = month === 'all' ? '全部月份' : month.replace('-', '年') + '月';
+            document.getElementById('month-selected').textContent = text;
+            toggleFilter('month');
+            filterPayments();
+        }
+        
+        function selectBank(bank) {
+            selectedBank = bank;
+            document.getElementById('bank-selected').textContent = bank === 'all' ? '全部银行' : bank;
+            toggleFilter('bank');
+            filterPayments();
+        }
+        
+        function filterPayments() {
+            // 这里可以添加实际的筛选逻辑
+            console.log('筛选条件:', { month: selectedMonth, bank: selectedBank });
+            
+            // 示例：如果两个都是all，显示所有；否则可以根据条件隐藏/显示
+            const allMonthSections = document.querySelectorAll('.month-section');
+            
+            if (selectedMonth === 'all' && selectedBank === 'all') {
+                allMonthSections.forEach(section => {
+                    section.style.display = 'block';
+                });
+                document.getElementById('payment-list').classList.remove('hidden');
+                document.getElementById('empty-state').classList.add('hidden');
+            } else {
+                // 简单示例：可以根据实际需求实现更复杂的筛选逻辑
+                let hasVisible = false;
+                allMonthSections.forEach(section => {
+                    const cards = section.querySelectorAll('.bg-white');
+                    let hasVisibleCard = false;
+                    
+                    cards.forEach(card => {
+                        const bankName = card.querySelector('h3').textContent;
+                        const shouldShow = (selectedBank === 'all' || bankName === selectedBank);
+                        card.style.display = shouldShow ? 'block' : 'none';
+                        if (shouldShow) hasVisibleCard = true;
+                    });
+                    
+                    section.style.display = hasVisibleCard ? 'block' : 'none';
+                    if (hasVisibleCard) hasVisible = true;
+                });
+                
+                if (!hasVisible) {
+                    document.getElementById('payment-list').classList.add('hidden');
+                    document.getElementById('empty-state').classList.remove('hidden');
+                } else {
+                    document.getElementById('payment-list').classList.remove('hidden');
+                    document.getElementById('empty-state').classList.add('hidden');
+                }
+            }
+        }
+        
+        // 点击页面其他地方关闭筛选器
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('.relative') && activeFilter) {
+                const filterEl = document.getElementById(activeFilter + '-filter');
+                const iconEl = document.getElementById(activeFilter + '-icon');
+                filterEl.classList.remove('active');
+                iconEl.style.transform = 'rotate(0deg)';
+                activeFilter = null;
+            }
+        });
+    </script>
+</body>
+</html>
+

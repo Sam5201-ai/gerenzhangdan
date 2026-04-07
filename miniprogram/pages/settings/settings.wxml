@@ -54,13 +54,25 @@
         </view>
         <text class="menu-arrow">›</text>
       </view>
+      <view class="menu-item" bindtap="goToPaymentHistory">
+        <view class="menu-item-left">
+          <view class="menu-icon">
+            <image class="menu-icon-img" src="/images/history.svg" mode="aspectFit" />
+          </view>
+          <view class="menu-text">
+            <text class="menu-title">还款记录</text>
+            <text class="menu-desc">查看历史还款记录</text>
+          </view>
+        </view>
+        <text class="menu-arrow">›</text>
+      </view>
       <view class="menu-item" bindtap="showImportExportPopup">
         <view class="menu-item-left">
           <view class="menu-icon">
             <image class="menu-icon-img" src="/images/data.svg" mode="aspectFit" />
           </view>
           <view class="menu-text">
-            <text class="menu-title">导入/导出数据</text>
+            <text class="menu-title">数据备份</text>
             <text class="menu-desc">备份和恢复数据</text>
           </view>
         </view>
@@ -80,11 +92,16 @@
       </view>
     </view>
   </view>
+  
+  <!-- 本地存储提示 -->
+  <view class="storage-notice">
+    <text class="storage-notice-text">本地存储 注意备份</text>
+  </view>
   </view>
 </view>
 
 <!-- 用户名编辑弹窗 -->
-<view class="popup-overlay {{showUsernameEditModal ? 'show' : ''}}" bindtap="cancelUsernameEdit">
+<view wx:if="{{showUsernameEditModal}}" class="popup-overlay show" bindtap="cancelUsernameEdit">
   <view class="popup-content username-edit-popup" catchtap="stopPropagation">
     <view class="popup-header">
       <text class="popup-title">修改昵称</text>
@@ -221,7 +238,7 @@
 <view class="popup-overlay {{showImportExportPopup ? 'show' : ''}}" bindtap="hideImportExportPopup">
   <view class="popup-content import-export-popup" catchtap="stopPropagation">
     <view class="popup-header">
-      <text class="popup-title">导入/导出数据</text>
+      <text class="popup-title">数据备份</text>
       <text class="popup-close" bindtap="hideImportExportPopup">×</text>
     </view>
     <view class="popup-body">

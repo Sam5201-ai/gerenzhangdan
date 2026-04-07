@@ -44,7 +44,10 @@ Page({
     
     // 日期选择弹窗
     showDatePicker: false,
-    dateOptions: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31]
+    dateOptions: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31],
+    
+    // 本地存储提示弹窗
+    showStorageTipPopup: false
   },
 
   onLoad: function(options) {
@@ -76,6 +79,9 @@ Page({
     setTimeout(() => {
       this.checkAndUpdateCardList()
     }, 500)
+    
+    // 检查是否首次进入，显示本地存储提示
+    this.checkFirstTimeEntry()
   },
   
   // 初始化用户信息
@@ -122,7 +128,7 @@ Page({
         const installmentDebt = await this.calculateInstallmentDebt(card)
         console.log(`卡片 ${card.name} 处理后的分期欠款:`, installmentDebt)
         return {
-          ...card,
+        ...card,
           maskedCardNumber: this.maskCardNumber(card.cardNumber),
           installmentDebt: installmentDebt
         }
@@ -173,7 +179,7 @@ Page({
       const processedCardList = await Promise.all(cardList.map(async (card) => {
         const installmentDebt = await this.calculateInstallmentDebt(card)
         return {
-          ...card,
+        ...card,
           maskedCardNumber: this.maskCardNumber(card.cardNumber),
           installmentDebt: installmentDebt
         }
@@ -334,9 +340,9 @@ Page({
     }
     
     // 直接隐藏弹窗，CSS会处理动画
-    this.setData({
-      showCardPopup: false
-    })
+      this.setData({
+        showCardPopup: false
+      })
   },
 
   // 阻止事件冒泡
@@ -580,5 +586,68 @@ Page({
     
     // 强制刷新卡片数据，不使用缓存
     this.loadCardList({ showLoading: false, useCache: false })
+  },
+
+  // 分享给朋友
+  onShareAppMessage: function() {
+    return {
+      title: '我的"负债清零"计划进行中！',
+      path: '/pages/index/index',
+      imageUrl: '/images/share.png'
+    }
+  },
+
+  // 分享到朋友圈
+  onShareTimeline: function() {
+    return {
+      title: '我的"负债清零"计划进行中！',
+      query: '',
+      imageUrl: '/images/share.png'
+    }
+  },
+
+  // 检查是否首次进入
+  checkFirstTimeEntry: function() {
+    try {
+      const hasShownStorageTip = wx.getStorageSync('hasShownStorageTip')
+      if (!hasShownStorageTip) {
+        // 首次进入，延迟500ms显示提示，让页面先渲染完成
+        setTimeout(() => {
+          this.showStorageTipPopup()
+          // 标记已显示过
+          wx.setStorageSync('hasShownStorageTip', true)
+        }, 500)
+      }
+    } catch (error) {
+      console.error('检查首次进入状态失败:', error)
+    }
+  },
+
+  // 显示本地存储提示弹窗
+  showStorageTipPopup: function() {
+    // 隐藏自定义tabBar
+    if (typeof this.getTabBar === 'function' && this.getTabBar()) {
+      this.getTabBar().setData({
+        hidden: true
+      })
+    }
+    
+    this.setData({
+      showStorageTipPopup: true
+    })
+  },
+
+  // 隐藏本地存储提示弹窗
+  hideStorageTipPopup: function() {
+    // 显示自定义tabBar
+    if (typeof this.getTabBar === 'function' && this.getTabBar()) {
+      this.getTabBar().setData({
+        hidden: false
+      })
+    }
+    
+    this.setData({
+      showStorageTipPopup: false
+    })
   }
 })

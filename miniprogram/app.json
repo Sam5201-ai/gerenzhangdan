@@ -2,7 +2,8 @@
   "pages": [
     "pages/index/index",
     "pages/installments/installments",
-    "pages/settings/settings"
+    "pages/settings/settings",
+    "pages/payment-history/payment-history"
   ],
   "window": {
     "backgroundColor": "#667eea",

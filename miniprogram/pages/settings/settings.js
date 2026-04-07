@@ -77,44 +77,39 @@ Page({
   },
 
   // 加载统计数据
-  loadStatsData: function() {
+  loadStatsData: async function() {
     try {
       const cardDataManager = getCardDataManager()
+      const billDataManager = getBillDataManager()
+      
       // 获取卡片数量
-      cardDataManager.getCardList().then(cards => {
-        const cardCount = cards ? cards.length : 0
-        
-        // 计算总额度和分期账单数量
-        let totalLimit = 0
-        let installmentCount = 0
-        
-        if (cards) {
-          cards.forEach(card => {
-            // 计算总额度
-            if (card.limit) {
-              const cardLimit = parseFloat(card.limit.toString().replace(/,/g, '')) || 0
-              totalLimit += cardLimit
-            }
-            
-            // 计算分期账单数量
-            if (card.installments && card.installments.length > 0) {
-              installmentCount += card.installments.length
-            }
-          })
-        }
-        
-        // 格式化总额度数字
-        const formattedTotalLimit = totalLimit.toLocaleString()
-        
-        this.setData({
-          stats: {
-            cardCount,
-            totalLimit: formattedTotalLimit,
-            installmentCount
+      const cards = await cardDataManager.getCardList()
+      const cardCount = cards ? cards.length : 0
+      
+      // 计算总额度
+      let totalLimit = 0
+      if (cards) {
+        cards.forEach(card => {
+          if (card.limit) {
+            const cardLimit = parseFloat(card.limit.toString().replace(/,/g, '')) || 0
+            totalLimit += cardLimit
           }
         })
-      }).catch(error => {
-        console.error('获取卡片数据失败:', error)
+      }
+      
+      // 获取分期账单数量
+      const bills = await billDataManager.getBillList()
+      const installmentCount = bills ? bills.length : 0
+      
+      // 格式化总额度数字
+      const formattedTotalLimit = totalLimit.toLocaleString()
+      
+      this.setData({
+        stats: {
+          cardCount,
+          totalLimit: formattedTotalLimit,
+          installmentCount
+        }
       })
     } catch (error) {
       console.error('加载统计数据失败:', error)
@@ -427,6 +422,13 @@ Page({
     })
   },
 
+  // 跳转到还款记录页面
+  goToPaymentHistory: function() {
+    wx.navigateTo({
+      url: '/pages/payment-history/payment-history'
+    })
+  },
+
   // 显示导入/导出数据弹窗
   showImportExportPopup: function() {
     // 隐藏自定义tabBar
@@ -534,7 +536,7 @@ Page({
       
       // 将数据保存为文件
       const fs = wx.getFileSystemManager()
-      const fileName = `卡包助手备份_${new Date().getTime()}.json`
+      const fileName = `卡帮手数据备份_${new Date().getTime()}.json`
       const filePath = `${wx.env.USER_DATA_PATH}/${fileName}`
       
       fs.writeFileSync(filePath, JSON.stringify(exportData, null, 2), 'utf8')
@@ -721,6 +723,24 @@ Page({
         icon: 'none',
         duration: 2000
       })
+    }
+  },
+
+  // 分享给朋友
+  onShareAppMessage: function() {
+    return {
+      title: '我的"负债清零"计划进行中！',
+      path: '/pages/settings/settings',
+      imageUrl: '/images/share.png'
+    }
+  },
+
+  // 分享到朋友圈
+  onShareTimeline: function() {
+    return {
+      title: '我的"负债清零"计划进行中！',
+      query: '',
+      imageUrl: '/images/share.png'
     }
   }
 })

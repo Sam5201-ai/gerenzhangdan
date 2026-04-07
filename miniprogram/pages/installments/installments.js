@@ -14,6 +14,7 @@ Page({
     showInstallmentPopup: false,
     showStatsPopup: false,
     showConfirmPopup: false,
+    popupScrollTop: 0, // 弹窗滚动位置
     confirmData: {
       actionType: '',
       installmentId: null,
@@ -285,6 +286,7 @@ Page({
     const updateData = { 
       showInstallmentPopup: true,
       editingInstallment: null,
+      popupScrollTop: 0, // 重置滚动位置
       'formData.cardIndex': defaultCardIndex
     };
     
@@ -373,6 +375,22 @@ Page({
       
       // 使用BillDataManager保存数据
       await this.saveBillData(installments);
+      
+      // 添加还款记录到历史记录中
+      try {
+        await this.billDataManager.addPaymentRecord(installment.id, {
+          amount: monthlyAmount,
+          paymentDate: installment.lastPaymentDate,
+          currentPeriod: installment.paidCount,
+          totalPeriods: installment.totalCount,
+          cardName: installment.cardName,
+          cardNumber: installment.cardNumber || ''
+        });
+        console.log('还款记录已添加到历史记录');
+      } catch (error) {
+        console.error('添加还款记录失败:', error);
+      }
+      
       this.calculateStats();
       
       wx.showToast({
@@ -406,6 +424,19 @@ Page({
       
       // 使用BillDataManager保存数据
       await this.saveBillData(installments);
+      
+      // 删除对应的还款记录
+      try {
+        const result = await this.billDataManager.removeLastPaymentRecord(installment.id);
+        if (result.success) {
+          console.log('还款记录已从历史记录中删除:', result.removedRecord);
+        } else {
+          console.warn('删除还款记录警告:', result.error);
+        }
+      } catch (error) {
+        console.error('删除还款记录失败:', error);
+      }
+      
       this.calculateStats();
       
       wx.showToast({
@@ -473,6 +504,7 @@ Page({
       this.setData({
         editingInstallment: installment,
         showInstallmentPopup: true,
+        popupScrollTop: 0, // 重置滚动位置
         formData: {
           cardIndex: cardIndex >= 0 ? cardIndex : -1,
           totalAmount: installment.totalAmount.replace(/,/g, ''),
@@ -616,14 +648,29 @@ Page({
   onInputTotalAmount: function (e) {
     let value = e.detail.value;
     
-    // 只允许输入数字
-    value = value.replace(/[^\d]/g, '');
+    // 只允许输入数字和小数点
+    value = value.replace(/[^\d.]/g, '');
     
-    // 限制上限为99999999
-    if (value && parseInt(value) > 99999999) {
-      value = '99999999';
+    // 只允许一个小数点
+    const dotCount = (value.match(/\./g) || []).length;
+    if (dotCount > 1) {
+      value = value.substring(0, value.lastIndexOf('.'));
+    }
+    
+    // 限制小数点后最多2位
+    if (value.includes('.')) {
+      const parts = value.split('.');
+      if (parts[1] && parts[1].length > 2) {
+        value = parts[0] + '.' + parts[1].substring(0, 2);
+      }
+    }
+    
+    // 限制上限为99999999.99
+    const numValue = parseFloat(value) || 0;
+    if (numValue > 99999999.99) {
+      value = '99999999.99';
       wx.showToast({
-        title: '金额不能超过99999999',
+        title: '金额不能超过99999999.99',
         icon: 'none'
       });
     }
@@ -960,5 +1007,22 @@ Page({
     });
   },
 
+  // 分享给朋友
+  onShareAppMessage: function() {
+    return {
+      title: '我的"负债清零"计划进行中！',
+      path: '/pages/installments/installments',
+      imageUrl: '/images/share.png'
+    }
+  },
+
+  // 分享到朋友圈
+  onShareTimeline: function() {
+    return {
+      title: '我的"负债清零"计划进行中！',
+      query: '',
+      imageUrl: '/images/share.png'
+    }
+  }
 
 });

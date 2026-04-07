@@ -95,7 +95,17 @@
                 </div>
                 <i class="fas fa-chevron-right text-gray-400"></i>
             </div>
-            <div class="menu-item px-4 py-4 flex items-center justify-between cursor-pointer" onclick="showAbout()">
+            <div class="menu-item px-4 py-4 flex items-center justify-between cursor-pointer border-t border-gray-100" onclick="showPaymentHistory()">
+                <div class="flex items-center">
+                    <i class="fas fa-history text-gray-400 mr-3"></i>
+                    <div>
+                        <p class="font-medium text-gray-800">还款记录</p>
+                        <p class="text-sm text-gray-500">查看历史还款记录</p>
+                    </div>
+                </div>
+                <i class="fas fa-chevron-right text-gray-400"></i>
+            </div>
+            <div class="menu-item px-4 py-4 flex items-center justify-between cursor-pointer border-t border-gray-100" onclick="showAbout()">
                 <div class="flex items-center">
                     <i class="fas fa-info-circle text-gray-400 mr-3"></i>
                     <div>
@@ -377,6 +387,13 @@
 
         function showFeedback() {
             alert('意见反馈功能');
+        }
+
+        function showPaymentHistory() {
+            // 在实际小程序中，这里会进行页面跳转
+            // wx.navigateTo({ url: '/pages/payment-history/payment-history' })
+            // 在原型中，可以打开新窗口或显示提示
+            alert('跳转到还款记录页面');
         }
 
         function showAbout() {

@@ -45,14 +45,16 @@ Page({
     editingUsername: ''
   },
 
-  onLoad: function (options) {
+  onLoad: async function (options) {
     // 获取系统状态栏高度
     const systemInfo = wx.getSystemInfoSync()
     this.setData({
       statusBarHeight: systemInfo.statusBarHeight
     })
     
-    // 加载用户数据
+    // 初始化并加载用户数据（确保清缓存后也能回拉云端昵称）
+    const userManager = getUserManager()
+    await userManager.init()
     this.loadUserData()
     // 加载统计数据
     this.loadStatsData()
@@ -178,7 +180,7 @@ Page({
   },
 
   // 确认修改用户名
-  confirmUsernameEdit: function() {
+  confirmUsernameEdit: async function() {
     const newUsername = this.data.editingUsername.trim()
     if (!newUsername) {
       wx.showToast({
@@ -200,11 +202,13 @@ Page({
       })
     }
     
-    // 保存到用户信息
+    // 保存到用户信息（本地+云端）
     const userManager = getUserManager()
-    const userInfo = userManager.getUserInfo() || {}
-    userInfo.nickName = newUsername
-    userManager.saveUserInfo(userInfo)
+    try {
+      await userManager.updateNickname(newUsername)
+    } catch (e) {
+      console.warn('昵称同步失败:', e)
+    }
     
     wx.showToast({
       title: '用户名已更新',

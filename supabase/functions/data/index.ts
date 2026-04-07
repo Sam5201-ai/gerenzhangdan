@@ -66,6 +66,30 @@ Deno.serve(async (req) => {
   // 统一补 openid
   const payload = body.payload ?? {};
 
+  // user profile
+  if (action === "user.profile") {
+    const { data, error } = await supabase
+      .from("app_users")
+      .select("openid,nickname,created_at,updated_at,last_login_at")
+      .eq("openid", openid)
+      .maybeSingle();
+    if (error) return json({ error: "user.profile failed", detail: error }, 500);
+    return json({ data }, 200);
+  }
+
+  if (action === "user.updateProfile") {
+    const nickname = String(payload?.nickname ?? "").trim();
+    if (!nickname) return json({ error: "Missing nickname" }, 400);
+    const { data, error } = await supabase
+      .from("app_users")
+      .update({ nickname })
+      .eq("openid", openid)
+      .select("openid,nickname,created_at,updated_at,last_login_at")
+      .single();
+    if (error) return json({ error: "user.updateProfile failed", detail: error }, 500);
+    return json({ data }, 200);
+  }
+
   // cards
   if (action === "cards.list") {
     const { data, error } = await supabase

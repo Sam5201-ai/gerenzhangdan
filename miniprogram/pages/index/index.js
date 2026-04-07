@@ -50,7 +50,7 @@ Page({
     showStorageTipPopup: false
   },
 
-  onLoad: function(options) {
+  onLoad: async function(options) {
     // 页面加载时的初始化
     console.log('卡包页面加载完成')
     
@@ -70,10 +70,10 @@ Page({
     })
     
     // 初始化用户信息
-    this.initUserInfo()
+    await this.initUserInfo()
     
     // 加载卡片数据（首次加载尝试使用缓存）
-    this.loadCardList({ showLoading: false }) // 首次加载不显示loading，优先使用缓存
+    await this.loadCardList({ showLoading: false, useCache: false }) // 首次优先拉云端，避免清缓存后空白
     
     // 重要：启动阶段不要自动“静默更新”。
     // 该逻辑在数据量较大或并发触发时容易导致 Service 线程被占用，从而触发开发者工具的 Error: timeout。

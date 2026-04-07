@@ -68,24 +68,31 @@ Deno.serve(async (req) => {
   }
 
   const openid = wxJson.openid;
-  const nickname = (body.nickname || "").trim() || null;
+  const nickname = (body.nickname || "").trim();
 
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
     auth: { persistSession: false },
   });
 
-  // upsert 用户 + 更新 last_login_at
+  // upsert 用户 + 更新 last_login_at（注意：空昵称不覆盖原昵称）
   const nowIso = new Date().toISOString();
   const { error: upsertErr } = await supabase.from("app_users").upsert(
     {
       openid,
-      nickname,
       last_login_at: nowIso,
     },
     { onConflict: "openid" },
   );
 
   if (upsertErr) return json({ error: "Upsert user failed", detail: upsertErr }, 500);
+
+  if (nickname) {
+    const { error: updateNickErr } = await supabase
+      .from("app_users")
+      .update({ nickname })
+      .eq("openid", openid);
+    if (updateNickErr) return json({ error: "Update nickname failed", detail: updateNickErr }, 500);
+  }
 
   // 签发应用 token（默认 7 天有效）
   const token = await new SignJWT({ openid })

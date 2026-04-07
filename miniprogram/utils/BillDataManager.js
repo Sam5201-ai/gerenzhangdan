@@ -146,7 +146,7 @@ class BillDataManager {
               remaining_installments: Number(b.remainingCount || (Number(b.totalCount || 0) - Number(b.paidCount || 0))),
               paid_amount: b.paidAmount ? Number(String(b.paidAmount).replace(/,/g, '')) : 0,
               remaining_amount: b.remainingAmount ? Number(String(b.remainingAmount).replace(/,/g, '')) : 0,
-              last_payment_date: b.lastPaymentDate || null,
+              last_payment_date: this.normalizeDateString(b.lastPaymentDate),
               status: b.status || 'active'
             }
           });
@@ -178,7 +178,7 @@ class BillDataManager {
             remaining_installments: Number(cleaned.remainingCount || (Number(cleaned.totalCount || 0) - Number(cleaned.paidCount || 0))),
             paid_amount: cleaned.paidAmount ? Number(String(cleaned.paidAmount).replace(/,/g, '')) : 0,
             remaining_amount: cleaned.remainingAmount ? Number(String(cleaned.remainingAmount).replace(/,/g, '')) : 0,
-            last_payment_date: cleaned.lastPaymentDate || null,
+            last_payment_date: this.normalizeDateString(cleaned.lastPaymentDate),
             status: cleaned.status || 'active'
           }
         });
@@ -231,7 +231,7 @@ class BillDataManager {
             remaining_installments: Number(cleaned.remainingCount || (Number(cleaned.totalCount || 0) - Number(cleaned.paidCount || 0))),
             paid_amount: cleaned.paidAmount ? Number(String(cleaned.paidAmount).replace(/,/g, '')) : 0,
             remaining_amount: cleaned.remainingAmount ? Number(String(cleaned.remainingAmount).replace(/,/g, '')) : 0,
-            last_payment_date: cleaned.lastPaymentDate || null,
+            last_payment_date: this.normalizeDateString(cleaned.lastPaymentDate),
             status: cleaned.status || 'active'
           }
         });
@@ -341,10 +341,12 @@ class BillDataManager {
   async addPaymentRecord(billId, paymentData) {
     try {
       const paymentHistory = await this.getPaymentHistory({ useCache: false });
+      const resolvedCardId = await this.resolveCardIdForPayment(billId, paymentData);
       
       const newRecord = {
         id: this.generatePaymentId(),
         billId: billId,
+        cardId: resolvedCardId || '',
         amount: paymentData.amount,
         paymentDate: paymentData.paymentDate,
         currentPeriod: paymentData.currentPeriod,
@@ -365,10 +367,11 @@ class BillDataManager {
       if (this.cloudApi.isEnabled()) {
         await this.cloudApi.call('repayments.add', {
           record: {
+            card_id: resolvedCardId || null,
             bill_id: billId,
             card_name: paymentData.cardName,
             amount: paymentData.amount ? Number(String(paymentData.amount).replace(/,/g, '')) : 0,
-            payment_date: paymentData.paymentDate,
+            payment_date: this.normalizeDateString(paymentData.paymentDate) || new Date().toISOString().slice(0, 10),
             remaining_periods: (paymentData.totalPeriods != null && paymentData.currentPeriod != null)
               ? Number(paymentData.totalPeriods) - Number(paymentData.currentPeriod)
               : null
@@ -464,6 +467,51 @@ class BillDataManager {
   // 生成还款记录ID
   generatePaymentId() {
     return 'payment_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+  }
+
+  // 解析还款记录对应的 cardId：优先使用调用入参，其次通过 billId 反查账单
+  async resolveCardIdForPayment(billId, paymentData) {
+    if (paymentData && paymentData.cardId) return paymentData.cardId;
+    if (!billId) return null;
+    try {
+      const bill = await this.getBillById(billId);
+      return bill?.cardId || null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // 统一日期格式：支持 YYYY-MM-DD / YYYY年MM月DD日 / ISO 字符串
+  normalizeDateString(value) {
+    if (!value) return null;
+    const raw = String(value).trim();
+    if (!raw) return null;
+
+    // 1) YYYY-MM-DD
+    const ymd = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+    if (ymd) {
+      const y = ymd[1];
+      const m = ymd[2].padStart(2, '0');
+      const d = ymd[3].padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    }
+
+    // 2) YYYY年MM月DD日
+    const cn = raw.match(/^(\d{4})年(\d{1,2})月(\d{1,2})日$/);
+    if (cn) {
+      const y = cn[1];
+      const m = cn[2].padStart(2, '0');
+      const d = cn[3].padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    }
+
+    // 3) ISO 或可被 Date 解析
+    const dt = new Date(raw);
+    if (!isNaN(dt.getTime())) {
+      return dt.toISOString().slice(0, 10);
+    }
+
+    return null;
   }
 }
 

@@ -42,11 +42,23 @@ class UserManager {
         const nickname = this.userInfo?.nickName || ''
         const auth = await this.cloudApi.login({ nickname })
         if (auth?.openid) {
+          let profileNickname = this.userInfo?.nickName || ''
+          try {
+            const profileResp = await this.cloudApi.call('user.profile')
+            const profile = profileResp?.data
+            if (profile?.nickname) {
+              profileNickname = profile.nickname
+            }
+          } catch (e) {
+            // ignore profile pull failures
+          }
+
           const now = Date.now()
           this.userInfo = {
             ...this.userInfo,
             userId: auth.openid,
             openid: auth.openid,
+            nickName: profileNickname || this.userInfo?.nickName || '',
             updatedAt: now,
             lastLoginAt: now
           }
@@ -90,6 +102,31 @@ class UserManager {
    */
   getOpenId() {
     return this.userInfo?.openid || null
+  }
+
+  /**
+   * 更新昵称（本地 + 云端）
+   * @param {string} nickname 新昵称
+   */
+  async updateNickname(nickname) {
+    const newName = (nickname || '').trim()
+    if (!newName) throw new Error('昵称不能为空')
+
+    if (this.cloudApi.isEnabled()) {
+      try {
+        await this.cloudApi.call('user.updateProfile', { nickname: newName })
+      } catch (e) {
+        console.warn('[UserManager] 云端昵称更新失败，已保留本地更新', e)
+      }
+    }
+
+    this.userInfo = {
+      ...(this.userInfo || {}),
+      nickName: newName,
+      updatedAt: Date.now()
+    }
+    this.saveUserInfo(this.userInfo)
+    return this.userInfo
   }
 
   /**

@@ -379,6 +379,7 @@ Page({
       // 添加还款记录到历史记录中
       try {
         await this.billDataManager.addPaymentRecord(installment.id, {
+          cardId: installment.cardId || '',
           amount: monthlyAmount,
           paymentDate: installment.lastPaymentDate,
           currentPeriod: installment.paidCount,

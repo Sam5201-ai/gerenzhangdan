@@ -58,7 +58,9 @@ jobs:
             if [ -d "$dir" ]; then
               fn="$(basename "$dir")"
               echo "Deploying function: $fn"
-              supabase functions deploy "$fn" --project-ref "$SUPABASE_PROJECT_ID"
+              # 使用 publishable key 调用函数时，不走 Supabase JWT 鉴权；
+              # 业务鉴权由函数内部 x-kbs-token 执行。
+              supabase functions deploy "$fn" --project-ref "$SUPABASE_PROJECT_ID" --no-verify-jwt
             fi
           done
 

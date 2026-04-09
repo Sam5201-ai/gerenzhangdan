@@ -193,7 +193,6 @@ Deno.serve(async (req) => {
       bill_id: r.bill_id ?? null,
       card_name: r.card_name ?? null,
       card_style: r.card_style ?? null,
-      card_number: r.card_number ?? null,
       current_period: r.current_period ?? null,
       total_periods: r.total_periods ?? null,
       amount: r.amount ?? 0,

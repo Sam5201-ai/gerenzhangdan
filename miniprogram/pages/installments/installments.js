@@ -182,41 +182,41 @@ Page({
     let totalRemainingAmount = 0;
 
     installments.forEach(item => {
-      const itemTotalAmount = Number(String(item.totalAmount || '0').replace(/,/g, '')) || 0;
-      const itemPaidAmount = Number(String(item.paidAmount || '0').replace(/,/g, '')) || 0;
-      const itemRemainingAmount = Number(String(item.remainingAmount || '0').replace(/,/g, '')) || 0;
+      const itemTotalAmount = this.roundToTwo(String(item.totalAmount || '0').replace(/,/g, ''));
+      const itemPaidAmount = this.roundToTwo(String(item.paidAmount || '0').replace(/,/g, ''));
+      const itemRemainingAmount = this.roundToTwo(String(item.remainingAmount || '0').replace(/,/g, ''));
       const itemPaidCount = parseInt(item.paidCount) || 0;
       const itemTotalCount = parseInt(item.totalCount) || 0;
-      const itemMonthlyPayment = Number(String(item.monthlyPayment || '0').replace(/,/g, '')) || 0;
+      const itemMonthlyPayment = this.roundToTwo(String(item.monthlyPayment || '0').replace(/,/g, ''));
       
       if (itemPaidCount >= itemTotalCount && itemTotalCount > 0) {
         completedCount++;
       } else {
         activeCount++;
-        monthlyTotalAmount += itemMonthlyPayment;
+        monthlyTotalAmount = this.roundToTwo(monthlyTotalAmount + itemMonthlyPayment);
       }
       
-      totalBillAmount += itemTotalAmount;
-      totalPaidAmount += itemPaidAmount;
-      totalRemainingAmount += itemRemainingAmount;
+      totalBillAmount = this.roundToTwo(totalBillAmount + itemTotalAmount);
+      totalPaidAmount = this.roundToTwo(totalPaidAmount + itemPaidAmount);
+      totalRemainingAmount = this.roundToTwo(totalRemainingAmount + itemRemainingAmount);
     });
 
     this.setData({
       'stats.totalCount': totalCount,
       'stats.completedCount': completedCount,
       'stats.activeCount': activeCount,
-      'stats.monthlyTotalAmount': this.formatAmount(monthlyTotalAmount),
-      'stats.totalAmount': this.formatAmount(totalBillAmount),
-      'stats.paidAmount': this.formatAmount(totalPaidAmount),
-      'stats.remainingAmount': this.formatAmount(totalRemainingAmount)
+      'stats.monthlyTotalAmount': this.formatAmount(monthlyTotalAmount, 2),
+      'stats.totalAmount': this.formatAmount(totalBillAmount, 2),
+      'stats.paidAmount': this.formatAmount(totalPaidAmount, 2),
+      'stats.remainingAmount': this.formatAmount(totalRemainingAmount, 2)
     });
   },
 
-  formatAmount: function(num) {
-    const value = Number(num) || 0;
+  formatAmount: function(num, fractionDigits = 0) {
+    const value = this.roundToTwo(num);
     return value.toLocaleString('en-US', {
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 2
+      minimumFractionDigits: fractionDigits,
+      maximumFractionDigits: fractionDigits === 0 ? 2 : fractionDigits
     });
   },
 

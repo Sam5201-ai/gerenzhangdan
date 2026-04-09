@@ -383,7 +383,6 @@ class BillDataManager {
             bill_id: billId,
             card_name: paymentData.cardName,
             card_style: paymentData.cardStyle || 'blue',
-            card_number: paymentData.cardNumber || '',
             current_period: paymentData.currentPeriod || 1,
             total_periods: paymentData.totalPeriods || 1,
             amount: paymentData.amount ? Number(String(paymentData.amount).replace(/,/g, '')) : 0,
@@ -420,7 +419,7 @@ class BillDataManager {
           currentPeriod: r.current_period != null ? Number(r.current_period) : null,
           totalPeriods: r.total_periods != null ? Number(r.total_periods) : null,
           cardStyle: r.card_style || 'blue',
-          cardNumber: r.card_number || '',
+          cardNumber: '',
           createdAt: r.created_at || new Date().toISOString()
         }));
         await this.storageManager.setData(this.PAYMENT_HISTORY_KEY, history, { immediate: false });

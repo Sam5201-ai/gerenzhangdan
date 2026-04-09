@@ -17,7 +17,7 @@
     <view class="profile-header" style="margin-top: {{statusBarHeight + 44}}px;">
     <view class="profile-info">
       <image class="avatar" src="{{userInfo.avatar || '/images/touxiang.png'}}" bindtap="changeAvatar" mode="aspectFill"></image>
-      <text class="username" bindtap="editUsername">{{userInfo.username || '用户'}}</text>
+      <text class="username" bindtap="editUsername">{{userInfo.username || '卡包用户'}}</text>
     </view>
   </view>
   
@@ -172,14 +172,14 @@
           <view class="app-icon">
             <image class="icon-image" src="/images/icon.png" mode="aspectFit"></image>
           </view>
-          <text class="app-name">卡帮手plus</text>
+          <text class="app-name">卡账单助手</text>
           <text class="app-version">v{{appVersion}}</text>
         </view>
         
         <!-- 应用介绍 -->
         <view class="about-section">
           <text class="section-title">应用介绍</text>
-          <text class="section-content">卡帮手plus是一款专为信用卡用户设计的账单管理工具，帮助您轻松记录卡片的账单、还款日等信息，并提供账单提醒功能。通过卡帮手plus，让每个人都能及时掌握还款信息，避免逾期和利息。</text>
+          <text class="section-content">卡账单助手是一款专为信用卡用户设计的账单管理工具，帮助您轻松记录卡片的账单、还款日等信息，并提供账单提醒功能。通过卡账单助手，让每个人都能及时掌握还款信息，避免逾期和利息。</text>
         </view>
         
         <!-- 我的初衷 -->
@@ -206,7 +206,7 @@
             </view>
             <view class="feature-item">
               <text class="feature-checkmark">✓</text>
-              <text class="feature-text">数据安全：本地存储，保护您的隐私和财务信息</text>
+              <text class="feature-text">数据安全：本地+云端存储，双重保护您的财务信息</text>
             </view>
           </view>
         </view>

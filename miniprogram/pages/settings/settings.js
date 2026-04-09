@@ -10,7 +10,7 @@ Page({
     // 用户信息
     userInfo: {
       avatar: '',
-      username: '卡包用户'
+      username: ''
     },
     // 统计数据
     stats: {
@@ -53,10 +53,14 @@ Page({
       statusBarHeight: systemInfo.statusBarHeight
     })
     
-    // 初始化并加载用户数据（确保清缓存后也能回拉云端昵称）
+    // 先立即读取本地缓存，避免页面先闪默认头像/昵称
+    this.loadUserData()
+
+    // 后台初始化并静默刷新用户数据
     const userManager = getUserManager()
     await userManager.init()
     this.loadUserData()
+
     // 加载统计数据
     this.loadStatsData()
   },
@@ -65,12 +69,12 @@ Page({
   loadUserData: function() {
     try {
       const userManager = getUserManager()
-      const userInfo = userManager.getUserInfo()
+      const userInfo = userManager.getUserInfo() || userManager.getLocalUserInfo?.() || null
       if (userInfo) {
         this.setData({
           userInfo: {
             avatar: userInfo.avatarUrl || '',
-            username: userInfo.nickName || '卡包用户'
+            username: userInfo.nickName || ''
           }
         })
       }

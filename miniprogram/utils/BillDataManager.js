@@ -454,6 +454,36 @@ class BillDataManager {
     }
   }
   
+  // 根据ID删除指定还款记录
+  async deletePaymentRecord(recordId) {
+    try {
+      if (!recordId) {
+        return { success: false, error: '缺少还款记录ID' };
+      }
+
+      const paymentHistory = await this.getPaymentHistory({ useCache: false });
+      const targetRecord = paymentHistory.find(record => record.id === recordId);
+      if (!targetRecord) {
+        return { success: false, error: '没有找到还款记录' };
+      }
+
+      const updatedHistory = paymentHistory.filter(record => record.id !== recordId);
+      await this.storageManager.setData(this.PAYMENT_HISTORY_KEY, updatedHistory, {
+        immediate: true,
+        priority: 'high'
+      });
+
+      if (this.cloudApi.isEnabled()) {
+        await this.cloudApi.call('repayments.delete', { id: recordId });
+      }
+
+      return { success: true, removedRecord: targetRecord };
+    } catch (error) {
+      console.error('删除指定还款记录失败:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
   // 删除还款记录（用于撤销还款）
   async removeLastPaymentRecord(billId) {
     try {

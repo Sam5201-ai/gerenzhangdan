@@ -182,13 +182,14 @@ Page({
     let totalRemainingAmount = 0;
 
     installments.forEach(item => {
-      const itemTotalAmount = parseFloat(item.totalAmount) || 0;
-      const itemPaidAmount = parseFloat(item.paidAmount) || 0;
+      const itemTotalAmount = Number(String(item.totalAmount || '0').replace(/,/g, '')) || 0;
+      const itemPaidAmount = Number(String(item.paidAmount || '0').replace(/,/g, '')) || 0;
+      const itemRemainingAmount = Number(String(item.remainingAmount || '0').replace(/,/g, '')) || 0;
       const itemPaidCount = parseInt(item.paidCount) || 0;
       const itemTotalCount = parseInt(item.totalCount) || 0;
-      const itemMonthlyPayment = parseFloat(item.monthlyPayment) || 0;
+      const itemMonthlyPayment = Number(String(item.monthlyPayment || '0').replace(/,/g, '')) || 0;
       
-      if (itemPaidCount >= itemTotalCount) {
+      if (itemPaidCount >= itemTotalCount && itemTotalCount > 0) {
         completedCount++;
       } else {
         activeCount++;
@@ -197,9 +198,8 @@ Page({
       
       totalBillAmount += itemTotalAmount;
       totalPaidAmount += itemPaidAmount;
+      totalRemainingAmount += itemRemainingAmount;
     });
-    
-    totalRemainingAmount = totalBillAmount - totalPaidAmount;
 
     this.setData({
       'stats.totalCount': totalCount,

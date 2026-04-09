@@ -4,9 +4,6 @@
   <view class="custom-navbar" style="padding-top: {{statusBarHeight}}px;">
     <view class="navbar-content">
       <view class="navbar-left">
-        <view class="help-icon" bindtap="showStorageTipPopup">
-          <text class="help-icon-text">?</text>
-        </view>
       </view>
       <text class="navbar-title">我的卡包</text>
       <view class="navbar-right">
@@ -154,38 +151,6 @@
           </view>
         </view>
       </scroll-view>
-    </view>
-  </view>
-
-  <!-- 本地存储提示弹窗 -->
-  <view class="popup-overlay {{showStorageTipPopup ? 'show' : ''}}" bindtap="hideStorageTipPopup">
-    <view class="popup-bottom storage-tip-popup" catchtap="stopPropagation">
-      <view class="popup-header-fixed">
-        <text class="popup-title">温馨提示</text>
-        <text class="popup-close" bindtap="hideStorageTipPopup">✕</text>
-      </view>
-      <view class="storage-tip-content">
-        <view class="tip-icon">💾</view>
-        <view class="tip-section">
-          <text class="tip-title">本地数据存储说明</text>
-          <text class="tip-desc">本小程序采用本地存储方式保存您的数据，请注意以下事项：</text>
-        </view>
-        <view class="tip-list">
-          <view class="tip-item">
-            <text class="tip-bullet">•</text>
-            <text class="tip-text">请勿随意删除小程序，否则所有数据将丢失</text>
-          </view>
-          <view class="tip-item">
-            <text class="tip-bullet">•</text>
-            <text class="tip-text">建议定期使用"导入/导出数据"功能备份数据</text>
-          </view>
-          <view class="tip-item">
-            <text class="tip-bullet">•</text>
-            <text class="tip-text">如需更换设备，请先导出数据再在新设备上导入</text>
-          </view>
-        </view>
-        <button class="tip-confirm-btn" bindtap="hideStorageTipPopup">我知道了</button>
-      </view>
     </view>
   </view>
 

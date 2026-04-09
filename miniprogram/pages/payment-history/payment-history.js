@@ -52,25 +52,37 @@ Page({
     }
     this.setData({ yearList })
     
-    // 加载数据
-    this.loadData()
+    // 先用缓存秒开，再后台静默同步云端
+    this.loadData({ useCache: true, silent: true, backgroundSync: true })
   },
 
   // 加载数据
-  async loadData() {
+  async loadData(options = {}) {
+    const { useCache = true, silent = false, backgroundSync = false } = options
+
     try {
-      wx.showLoading({ title: '加载中...' })
+      if (!silent) {
+        wx.showLoading({ title: '加载中...' })
+      }
       
       // 加载银行列表
-      await this.loadBankList()
+      await this.loadBankList({ useCache })
       
       // 加载还款记录
-      await this.loadPaymentRecords()
+      await this.loadPaymentRecords({ useCache })
       
-      wx.hideLoading()
+      if (!silent) {
+        wx.hideLoading()
+      }
+
+      if (backgroundSync && this.billDataManager?.cloudApi?.isEnabled()) {
+        this.silentRefreshFromCloud()
+      }
     } catch (error) {
       console.error('加载数据失败:', error)
-      wx.hideLoading()
+      if (!silent) {
+        wx.hideLoading()
+      }
       wx.showToast({
         title: '加载失败',
         icon: 'none'
@@ -79,11 +91,12 @@ Page({
   },
 
   // 加载银行列表
-  async loadBankList() {
+  async loadBankList(options = {}) {
+    const { useCache = true } = options
     try {
-      const cardList = await this.cardDataManager.getCardList()
+      const cardList = await this.cardDataManager.getCardList({ useCache })
       this._cardStyleCache = cardList || []
-      const billList = await this.billDataManager.getBillList({ useCache: false })
+      const billList = await this.billDataManager.getBillList({ useCache })
       this._billCache = billList || []
       const bankSet = new Set()
       
@@ -102,10 +115,10 @@ Page({
   },
 
   // 加载还款记录
-  async loadPaymentRecords() {
+  async loadPaymentRecords(options = {}) {
+    const { useCache = true } = options
     try {
-      // 直接从还款历史记录中获取数据（不使用缓存，确保获取最新数据）
-      const paymentHistory = await this.billDataManager.getPaymentHistory({ useCache: false })
+      const paymentHistory = await this.billDataManager.getPaymentHistory({ useCache })
       this._paymentHistoryCache = paymentHistory || []
       
       console.log('获取到的还款历史记录:', paymentHistory)
@@ -272,6 +285,20 @@ Page({
     }
   },
 
+  async silentRefreshFromCloud() {
+    try {
+      await this.loadBankList({ useCache: false })
+      const prev = JSON.stringify(this.data.paymentRecords || [])
+      await this.loadPaymentRecords({ useCache: false })
+      const next = JSON.stringify(this.data.paymentRecords || [])
+      if (prev !== next) {
+        console.log('还款记录已静默刷新为云端最新数据')
+      }
+    } catch (error) {
+      console.warn('静默刷新还款记录失败:', error)
+    }
+  },
+
   getCardStyleByName(cardName) {
     const cards = this._cardStyleCache || []
     const matched = cards.find(card => card.name === cardName)
@@ -367,15 +394,22 @@ Page({
     const id = e.currentTarget.dataset.id
     if (!id) return
     wx.showModal({
-      title: '隐藏记录',
-      content: '确定隐藏这条还款记录吗？该操作不会影响分期账单数据。',
-      success: (res) => {
+      title: '删除记录',
+      content: '确定删除这条还款记录吗？删除后会同步移除本地与云端数据。',
+      success: async (res) => {
         if (!res.confirm) return
-        const ids = this.getHiddenPaymentRecordIds()
-        if (!ids.includes(id)) ids.push(id)
-        this.saveHiddenPaymentRecordIds(ids)
-        this.loadPaymentRecords()
-        wx.showToast({ title: '已隐藏', icon: 'success' })
+        try {
+          const result = await this.billDataManager.deletePaymentRecord(id)
+          if (!result.success) {
+            wx.showToast({ title: result.error || '删除失败', icon: 'none' })
+            return
+          }
+          await this.loadPaymentRecords({ useCache: true })
+          wx.showToast({ title: '删除成功', icon: 'success' })
+        } catch (error) {
+          console.error('删除还款记录失败:', error)
+          wx.showToast({ title: '删除失败', icon: 'none' })
+        }
       }
     })
   },

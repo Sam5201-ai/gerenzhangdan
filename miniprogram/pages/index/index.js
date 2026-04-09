@@ -44,10 +44,7 @@ Page({
     
     // 日期选择弹窗
     showDatePicker: false,
-    dateOptions: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31],
-    
-    // 本地存储提示弹窗
-    showStorageTipPopup: false
+    dateOptions: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31]
   },
 
   onLoad: async function(options) {
@@ -78,9 +75,6 @@ Page({
     // 重要：启动阶段不要自动“静默更新”。
     // 该逻辑在数据量较大或并发触发时容易导致 Service 线程被占用，从而触发开发者工具的 Error: timeout。
     // 如需开启，可在用户手动触发“同步/刷新”时调用 checkAndUpdateCardList。
-    
-    // 检查是否首次进入，显示本地存储提示
-    this.checkFirstTimeEntry()
   },
   
   // 初始化用户信息

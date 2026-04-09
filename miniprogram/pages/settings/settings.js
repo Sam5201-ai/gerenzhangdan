@@ -2,6 +2,7 @@
 const { getUserManager } = require('../../utils/UserManager')
 const { getCardDataManager } = require('../../utils/CardDataManager')
 const { getBillDataManager } = require('../../utils/BillDataManager')
+const { getCloudApi, REPAYMENT_REMINDER_TEMPLATE_ID } = require('../../utils/CloudApi')
 
 Page({
   data: {
@@ -31,15 +32,16 @@ Page({
     },
     // 订阅设置
     subscriptions: {
-      paymentReminder: true,
-      billReminder: true
+      paymentReminder: false,
+      billReminder: false
     },
-    paymentReminderEnabled: true,
+    paymentReminderEnabled: false,
+    isSavingSubscription: false,
     // 续收提醒相关
     renewalNotifications: {
       billReminder: {
-        count: 58,
-        enabled: true
+        count: 0,
+        enabled: false
       }
     },
     // 用户名编辑相关
@@ -232,34 +234,50 @@ Page({
   },
 
   // 显示消息订阅弹窗
-  showMessageSubscription: function() {
+  showMessageSubscription: async function() {
     // 隐藏自定义tabBar
     if (typeof this.getTabBar === 'function' && this.getTabBar()) {
       this.getTabBar().setData({
         hidden: true
       })
     }
-    
-    // 加载当前订阅设置，确保显示实际的用户状态
-    const subscriptions = wx.getStorageSync('subscriptions') || {
-      paymentReminder: false,  // 默认为关闭状态，避免误导用户
-      billReminder: false
-    }
-    
-    // 加载续收提醒设置
-    const renewalSettings = wx.getStorageSync('renewalNotifications') || {
-      billReminder: {
-        count: 0,
-        enabled: false
+
+    wx.showLoading({ title: '加载中...' })
+    try {
+      const cloudApi = getCloudApi()
+      const settings = await cloudApi.getReminderSettings()
+      const paymentReminderEnabled = !!settings?.repayment_reminder_enabled
+      const renewalCount = Number(settings?.repayment_reminder_count || 0)
+      const subscriptions = {
+        paymentReminder: paymentReminderEnabled,
+        billReminder: paymentReminderEnabled
       }
+      const renewalNotifications = {
+        billReminder: {
+          count: renewalCount,
+          enabled: paymentReminderEnabled && renewalCount > 0
+        }
+      }
+
+      wx.setStorageSync('subscriptions', subscriptions)
+      wx.setStorageSync('renewalNotifications', renewalNotifications)
+
+      this.setData({
+        showSubscriptionPopup: true,
+        subscriptions,
+        paymentReminderEnabled,
+        renewalNotifications
+      })
+    } catch (error) {
+      console.error('加载订阅设置失败:', error)
+      wx.showToast({
+        title: '加载订阅设置失败',
+        icon: 'none'
+      })
+      this.hideSubscriptionPopup()
+    } finally {
+      wx.hideLoading()
     }
-    
-    this.setData({
-      showSubscriptionPopup: true,
-      subscriptions,
-      paymentReminderEnabled: subscriptions.paymentReminder,
-      renewalNotifications: renewalSettings
-    })
   },
 
   // 隐藏消息订阅弹窗
@@ -305,64 +323,158 @@ Page({
   },
 
   // 支付提醒开关切换
-  togglePaymentReminder: function(e) {
+  togglePaymentReminder: async function(e) {
     const enabled = e.detail.value
-    this.setData({
-      paymentReminderEnabled: enabled,
-      'subscriptions.paymentReminder': enabled
-    })
-    
-    if (enabled) {
-      // 请求订阅消息
-      wx.requestSubscribeMessage({
-        tmplIds: ['your-template-id'], // 需要替换为实际的模板ID
-        success: (res) => {
-          console.log('订阅成功', res)
-        },
-        fail: (err) => {
-          console.log('订阅失败', err)
-          this.setData({
-            paymentReminderEnabled: false,
-            'subscriptions.paymentReminder': false
-          })
-        }
+    const cloudApi = getCloudApi()
+
+    if (!enabled) {
+      this.setData({
+        paymentReminderEnabled: false,
+        'subscriptions.paymentReminder': false,
+        'subscriptions.billReminder': false,
+        'renewalNotifications.billReminder.enabled': false
       })
+      return
+    }
+
+    wx.showLoading({ title: '请求订阅中...' })
+    try {
+      const res = await cloudApi.requestRepaymentReminderSubscription()
+      const accepted = res && res[REPAYMENT_REMINDER_TEMPLATE_ID] === 'accept'
+      if (!accepted) {
+        this.setData({
+          paymentReminderEnabled: false,
+          'subscriptions.paymentReminder': false,
+          'subscriptions.billReminder': false
+        })
+        wx.showToast({
+          title: '请先允许订阅消息',
+          icon: 'none'
+        })
+        return
+      }
+
+      this.setData({
+        paymentReminderEnabled: true,
+        'subscriptions.paymentReminder': true,
+        'subscriptions.billReminder': true,
+        'renewalNotifications.billReminder.enabled': this.data.renewalNotifications.billReminder.count > 0
+      })
+    } catch (err) {
+      console.log('订阅失败', err)
+      this.setData({
+        paymentReminderEnabled: false,
+        'subscriptions.paymentReminder': false,
+        'subscriptions.billReminder': false
+      })
+      wx.showToast({
+        title: '订阅请求失败',
+        icon: 'none'
+      })
+    } finally {
+      wx.hideLoading()
     }
   },
 
   // 续收提醒
-  renewSubscription: function() {
-    const renewalNotifications = this.data.renewalNotifications
-    renewalNotifications.billReminder.count += 1
-    
-    this.setData({
-      renewalNotifications
-    })
-    
-    wx.showToast({
-      title: '续收成功',
-      icon: 'success'
-    })
+  renewSubscription: async function() {
+    wx.showLoading({ title: '续收中...' })
+    try {
+      const cloudApi = getCloudApi()
+      const res = await cloudApi.requestRepaymentReminderSubscription()
+      const accepted = res && res[REPAYMENT_REMINDER_TEMPLATE_ID] === 'accept'
+      if (!accepted) {
+        wx.showToast({
+          title: '需允许订阅后才能续收',
+          icon: 'none'
+        })
+        return
+      }
+
+      const updated = await cloudApi.renewReminderSubscription()
+      const count = Number(updated?.repayment_reminder_count || 0)
+      const paymentReminderEnabled = !!updated?.repayment_reminder_enabled
+      const renewalNotifications = {
+        billReminder: {
+          count,
+          enabled: paymentReminderEnabled && count > 0
+        }
+      }
+
+      this.setData({
+        renewalNotifications,
+        paymentReminderEnabled,
+        'subscriptions.paymentReminder': paymentReminderEnabled,
+        'subscriptions.billReminder': paymentReminderEnabled
+      })
+
+      wx.setStorageSync('renewalNotifications', renewalNotifications)
+      wx.showToast({
+        title: '续收成功',
+        icon: 'success'
+      })
+    } catch (error) {
+      console.error('续收失败:', error)
+      wx.showToast({
+        title: '续收失败',
+        icon: 'none'
+      })
+    } finally {
+      wx.hideLoading()
+    }
   },
 
   // 确认订阅设置
-  confirmSubscription: function() {
-    // 保存订阅设置到本地存储
-    const currentSubscriptions = {
-      paymentReminder: this.data.paymentReminderEnabled,
-      billReminder: this.data.subscriptions.billReminder
+  confirmSubscription: async function() {
+    if (this.data.isSavingSubscription) {
+      return
     }
-    
-    wx.setStorageSync('subscriptions', currentSubscriptions)
-    
-    // 保存续收提醒设置
-    wx.setStorageSync('renewalNotifications', this.data.renewalNotifications)
-    
-    wx.showToast({
-      title: '设置已保存',
-      icon: 'success'
-    })
-    this.hideSubscriptionPopup()
+
+    this.setData({ isSavingSubscription: true })
+    wx.showLoading({ title: '保存中...' })
+    try {
+      const cloudApi = getCloudApi()
+      const updated = await cloudApi.saveReminderSettings({
+        repaymentReminderEnabled: this.data.paymentReminderEnabled
+      })
+
+      const count = Number(updated?.repayment_reminder_count || 0)
+      const paymentReminderEnabled = !!updated?.repayment_reminder_enabled
+      const currentSubscriptions = {
+        paymentReminder: paymentReminderEnabled,
+        billReminder: paymentReminderEnabled
+      }
+      const renewalNotifications = {
+        billReminder: {
+          count,
+          enabled: paymentReminderEnabled && count > 0
+        }
+      }
+
+      wx.setStorageSync('subscriptions', currentSubscriptions)
+      wx.setStorageSync('renewalNotifications', renewalNotifications)
+
+      this.setData({
+        subscriptions: currentSubscriptions,
+        paymentReminderEnabled,
+        renewalNotifications
+      })
+
+      wx.showToast({
+        title: '设置已保存',
+        icon: 'success'
+      })
+      this.hideSubscriptionPopup()
+    } catch (error) {
+      console.error('保存订阅设置失败:', error)
+      wx.showToast({
+        title: '保存失败',
+        icon: 'none'
+      })
+    } finally {
+      this.setData({ isSavingSubscription: false })
+      wx.hideLoading()
+    }
   },
 
 
@@ -418,13 +530,9 @@ Page({
 
   },
 
-  // 消息订阅功能禁用提示
-  showMessageSubscriptionDisabled: function() {
-    wx.showToast({
-      title: '功能开发中',
-      icon: 'none',
-      duration: 2000
-    })
+  // 消息订阅入口
+  showMessageSubscriptionEntry: function() {
+    this.showMessageSubscription()
   },
 
   // 跳转到还款记录页面

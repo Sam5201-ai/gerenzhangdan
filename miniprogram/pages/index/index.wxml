@@ -108,24 +108,6 @@
           </view>
         </view>
 
-        <!-- 启用还款提醒 -->
-        <view class="form-item">
-          <view class="reminder-toggle" bindtap="toggleReminder">
-            <text class="form-label">启用还款提醒</text>
-            <view class="toggle-switch {{reminderEnabled ? 'active' : ''}}">
-              <view class="toggle-dot"></view>
-            </view>
-          </view>
-          <view class="reminder-options {{reminderEnabled ? '' : 'hidden'}}">
-            <text class="reminder-label">提前几天提醒：</text>
-            <view class="reminder-days">
-              <view wx:for="{{reminderDaysOptions}}" wx:key="*this" class="day-option {{selectedReminderDays === item ? 'selected' : ''}}" bindtap="selectReminderDays" data-days="{{item}}">
-                <text>{{item}}天</text>
-              </view>
-            </view>
-          </view>
-        </view>
-
           <!-- 操作按钮 -->
           <view class="form-buttons">
             <button class="btn-cancel" bindtap="hideCardPopup">取消</button>

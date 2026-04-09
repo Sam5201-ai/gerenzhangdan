@@ -27,14 +27,7 @@ Page({
     // 样式选项
     styleOptions: ['blue', 'green', 'purple', 'orange', 'red', 'pink'],
     selectedStyle: 'blue',
-    
-    // 还款提醒
-    reminderEnabled: false,
-    reminderDaysOptions: [1, 3, 5, 7],
-    selectedReminderDays: 3,
-    
 
-    
     // 同步状态
     isSyncing: false,
     
@@ -277,9 +270,7 @@ Page({
         limit: '',
         dueDate: ''
       },
-      selectedStyle: 'blue',
-      reminderEnabled: false,
-      selectedReminderDays: 3
+      selectedStyle: 'blue'
     })
   },
 
@@ -306,9 +297,7 @@ Page({
           limit: card.limit,
           dueDate: card.dueDate
         },
-        selectedStyle: card.style,
-        reminderEnabled: card.reminderEnabled || false,
-        selectedReminderDays: card.reminderDays || 3
+        selectedStyle: card.style
       })
     }
   },
@@ -424,24 +413,9 @@ Page({
     })
   },
 
-  // 切换还款提醒
-  toggleReminder() {
-    this.setData({
-      reminderEnabled: !this.data.reminderEnabled
-    })
-  },
-
-  // 选择提醒天数
-  selectReminderDays(e) {
-    const days = e.currentTarget.dataset.days
-    this.setData({
-      selectedReminderDays: days
-    })
-  },
-
   // 保存卡片
   async saveCard() {
-    const { formData, selectedStyle, reminderEnabled, selectedReminderDays, editingCardId } = this.data
+    const { formData, selectedStyle, editingCardId } = this.data
     
     try {
       const cardData = {
@@ -449,9 +423,7 @@ Page({
         cardNumber: formData.cardNumber,
         limit: formData.limit,
         dueDate: formData.dueDate,
-        style: selectedStyle,
-        reminderEnabled: reminderEnabled,
-        reminderDays: selectedReminderDays
+        style: selectedStyle
       }
 
       this.hideCardPopup()

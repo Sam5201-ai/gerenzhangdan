@@ -497,32 +497,56 @@ class BillDataManager {
   // 根据ID删除指定还款记录
   async deletePaymentRecord(recordId) {
     try {
+      console.log('[还款记录删除] 开始删除指定记录, 入参ID:', recordId);
       if (!recordId) {
+        console.warn('[还款记录删除] 删除中止: 缺少还款记录ID');
         return { success: false, error: '缺少还款记录ID' };
       }
 
       const paymentHistory = await this.getLocalPaymentHistory();
+      console.log('[还款记录删除] 当前本地还款记录数量:', paymentHistory.length);
       const targetRecord = paymentHistory.find(record => record.id === recordId || record.cloudId === recordId);
       if (!targetRecord) {
+        console.warn('[还款记录删除] 删除中止: 未找到目标记录', { recordId });
         return { success: false, error: '没有找到还款记录' };
       }
 
+      console.log('[还款记录删除] 命中的本地目标记录:', targetRecord);
       const updatedHistory = paymentHistory.filter(record => record.id !== targetRecord.id && record.cloudId !== targetRecord.cloudId);
+      console.log('[还款记录删除] 本地删除前后数量:', {
+        before: paymentHistory.length,
+        after: updatedHistory.length
+      });
       await this.storageManager.setData(this.PAYMENT_HISTORY_KEY, updatedHistory, {
         immediate: true,
         priority: 'high'
       });
+      console.log('[还款记录删除] 本地 payment_history 已更新');
 
       if (this.cloudApi.isEnabled()) {
         const cloudRecordId = targetRecord.cloudId || targetRecord.id || await this.findCloudPaymentRecordId(targetRecord);
+        console.log('[还款记录删除] 云端删除条件:', {
+          cloudEnabled: true,
+          localId: targetRecord.id,
+          cloudId: targetRecord.cloudId || '',
+          finalCloudRecordId: cloudRecordId || ''
+        });
         if (cloudRecordId) {
-          await this.cloudApi.call('repayments.delete', { id: cloudRecordId });
+          const deleteResp = await this.cloudApi.call('repayments.delete', { id: cloudRecordId });
+          console.log('[还款记录删除] 云端删除成功:', {
+            cloudRecordId,
+            response: deleteResp
+          });
+        } else {
+          console.warn('[还款记录删除] 未找到可删除的云端记录ID，已跳过云端删除:', targetRecord);
         }
+      } else {
+        console.warn('[还款记录删除] 当前未启用云端，同步删除已跳过');
       }
 
       return { success: true, removedRecord: targetRecord };
     } catch (error) {
-      console.error('删除指定还款记录失败:', error);
+      console.error('[还款记录删除] 删除指定记录失败:', error);
       return { success: false, error: error.message };
     }
   }
@@ -530,58 +554,98 @@ class BillDataManager {
   // 删除还款记录（用于撤销还款）
   async removeLastPaymentRecord(billId) {
     try {
+      console.log('[撤销还款] 开始删除最后一条还款记录, billId:', billId);
       const paymentHistory = await this.getLocalPaymentHistory();
+      console.log('[撤销还款] 当前本地还款记录数量:', paymentHistory.length);
       
       // 找到该账单的最后一条还款记录
       const billRecords = paymentHistory.filter(record => record.billId === billId);
+      console.log('[撤销还款] 当前账单命中的还款记录数量:', billRecords.length);
       if (billRecords.length === 0) {
+        console.warn('[撤销还款] 删除中止: 没有找到还款记录', { billId });
         return { success: false, error: '没有找到还款记录' };
       }
       
       // 按时间排序，找到最新的记录
       billRecords.sort((a, b) => new Date(b.confirmedAt || b.createdAt || 0) - new Date(a.confirmedAt || a.createdAt || 0));
       const lastRecord = billRecords[0];
+      console.log('[撤销还款] 识别到最后一条记录:', lastRecord);
       
       // 从历史记录中删除
       const updatedHistory = paymentHistory.filter(record => record.id !== lastRecord.id && record.cloudId !== lastRecord.cloudId);
+      console.log('[撤销还款] 本地删除前后数量:', {
+        before: paymentHistory.length,
+        after: updatedHistory.length
+      });
       
       await this.storageManager.setData(this.PAYMENT_HISTORY_KEY, updatedHistory, {
         immediate: true,
         priority: 'high'
       });
+      console.log('[撤销还款] 本地 payment_history 已更新');
 
       if (this.cloudApi.isEnabled() && (lastRecord.cloudId || lastRecord.id || lastRecord.billId)) {
         try {
           const cloudRecordId = lastRecord.cloudId || lastRecord.id || await this.findCloudPaymentRecordId(lastRecord);
+          console.log('[撤销还款] 云端删除条件:', {
+            cloudEnabled: true,
+            localId: lastRecord.id,
+            cloudId: lastRecord.cloudId || '',
+            finalCloudRecordId: cloudRecordId || ''
+          });
           if (cloudRecordId) {
-            await this.cloudApi.call('repayments.delete', { id: cloudRecordId });
+            const deleteResp = await this.cloudApi.call('repayments.delete', { id: cloudRecordId });
+            console.log('[撤销还款] 云端删除成功:', {
+              cloudRecordId,
+              response: deleteResp
+            });
+          } else {
+            console.warn('[撤销还款] 未找到可删除的云端记录ID，已跳过云端删除:', lastRecord);
           }
         } catch (error) {
           const msg = String(error && error.message ? error.message : error);
           if (msg.includes('Unknown action')) {
-            console.warn('云端尚未部署 repayments.delete，已跳过远端删除');
+            console.warn('[撤销还款] 云端尚未部署 repayments.delete，已跳过远端删除');
           } else {
+            console.error('[撤销还款] 云端删除失败:', error);
             throw error;
           }
         }
+      } else {
+        console.warn('[撤销还款] 当前未启用云端，或记录缺少云端定位信息，已跳过云端删除');
       }
       
       return { success: true, removedRecord: lastRecord };
     } catch (error) {
-      console.error('删除还款记录失败:', error);
+      console.error('[撤销还款] 删除还款记录失败:', error);
       return { success: false, error: error.message };
     }
   }
   
   async findCloudPaymentRecordId(targetRecord) {
-    if (!this.cloudApi.isEnabled() || !targetRecord) return null;
+    if (!this.cloudApi.isEnabled() || !targetRecord) {
+      console.warn('[还款记录删除] 跳过云端记录匹配: 云端未启用或目标记录为空', {
+        cloudEnabled: this.cloudApi.isEnabled(),
+        hasTargetRecord: !!targetRecord
+      });
+      return null;
+    }
 
     try {
+      console.log('[还款记录删除] 开始匹配云端记录ID, 目标记录:', targetRecord);
       const resp = await this.cloudApi.call('repayments.list');
       const rows = Array.isArray(resp?.data) ? resp.data : [];
       const targetAmount = Number(String(targetRecord.amount || '0').replace(/,/g, '')) || 0;
       const targetDate = this.normalizeDateString(targetRecord.paymentDate);
       const targetCreatedAt = targetRecord.confirmedAt || targetRecord.createdAt || '';
+      console.log('[还款记录删除] 云端还款记录列表数量:', rows.length);
+      console.log('[还款记录删除] 云端匹配条件:', {
+        billId: targetRecord.billId || '',
+        amount: targetAmount,
+        paymentDate: targetDate || '',
+        cardName: targetRecord.cardName || '',
+        targetCreatedAt
+      });
 
       const matched = rows.find(item => {
         const sameBillId = String(item.bill_id || '') === String(targetRecord.billId || '');
@@ -594,9 +658,15 @@ class BillDataManager {
         return sameBillId && sameAmount && sameDate && sameCardName && sameCreatedAt;
       });
 
+      if (matched) {
+        console.log('[还款记录删除] 已匹配到云端记录:', matched);
+      } else {
+        console.warn('[还款记录删除] 未匹配到云端记录');
+      }
+
       return matched?.id || null;
     } catch (error) {
-      console.warn('匹配云端还款记录ID失败:', error);
+      console.warn('[还款记录删除] 匹配云端还款记录ID失败:', error);
       return null;
     }
   }

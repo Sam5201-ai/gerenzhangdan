@@ -7,6 +7,7 @@
 
 const SUPABASE_PROJECT_URL = 'https://yggtdyohiqlegdneshyx.supabase.co'
 const SUPABASE_ANON_KEY = 'sb_publishable_UrSrFRDu7bi6-0ylWw3_jA_0Clk39SG'
+const REPAYMENT_REMINDER_TEMPLATE_ID = '5r9EsCSn8mNe4HhDGIotDLMHus50Cb-5XfJA7Y0ZgL4'
 
 const FUNCTIONS_BASE = `${SUPABASE_PROJECT_URL}/functions/v1`
 const STORAGE_KEY = 'cloudAuth'
@@ -103,6 +104,34 @@ class CloudApi {
       data: { action, payload }
     })
   }
+
+  async getReminderSettings() {
+    const resp = await this.call('subscriptions.getSettings')
+    return resp?.data || null
+  }
+
+  async saveReminderSettings(settings = {}) {
+    const resp = await this.call('subscriptions.saveSettings', settings)
+    return resp?.data || null
+  }
+
+  async requestRepaymentReminderSubscription() {
+    return await new Promise((resolve, reject) => {
+      wx.requestSubscribeMessage({
+        tmplIds: [REPAYMENT_REMINDER_TEMPLATE_ID],
+        success: (res) => resolve(res),
+        fail: (error) => reject(error)
+      })
+    })
+  }
+
+  async renewReminderSubscription({ templateId = REPAYMENT_REMINDER_TEMPLATE_ID, scene = 'repayment_reminder' } = {}) {
+    const resp = await this.call('subscriptions.renew', {
+      templateId,
+      scene
+    })
+    return resp?.data || null
+  }
 }
 
 let instance = null
@@ -113,6 +142,7 @@ function getCloudApi() {
 
 module.exports = {
   CloudApi,
-  getCloudApi
+  getCloudApi,
+  REPAYMENT_REMINDER_TEMPLATE_ID
 }
 

@@ -41,13 +41,13 @@
 - `WECHAT_APPID`（你的小程序 appid）
 - `WECHAT_SECRET`（你的小程序 secret）
 - `APP_JWT_SECRET`（自定义随机强密钥）
-- `SUPABASE_CRON_SECRET`（用于保护定时触发还款提醒的请求）
+- `KBS_CRON_SECRET`（用于保护定时触发还款提醒的请求）
 
 ## 定时方案（你本次选择的是 Supabase 侧定时任务）
 
 建议在 Supabase 后台将定时任务配置为每天北京时间上午 8 点调用 `data` 函数，并带上：
 
-- 请求头：`x-cron-secret: <SUPABASE_CRON_SECRET>`
+- 请求头：`x-cron-secret: <KBS_CRON_SECRET>`
 - 请求体：
 
 ```json
@@ -77,4 +77,4 @@
 
 - `sb_publishable_...` 这种 publishable key 不等于 `SUPABASE_DB_PASSWORD`
 - 如果数据库密码忘了，可在 Supabase 重置 DB password 后同步更新 GitHub Secret
-- `SUPABASE_CRON_SECRET` 需要同时配置到工作流密钥与 Supabase Functions Secrets 中
+- `KBS_CRON_SECRET` 需要同时配置到工作流密钥与 Supabase Functions Secrets 中

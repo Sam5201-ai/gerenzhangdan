@@ -185,7 +185,7 @@ Deno.serve(async (req) => {
       return json({ error: "Unauthorized", detail: String(e) }, 401);
     }
   } else {
-    const cronSecret = Deno.env.get("SUPABASE_CRON_SECRET") || "";
+    const cronSecret = Deno.env.get("KBS_CRON_SECRET") || "";
     const requestSecret = req.headers.get("x-cron-secret") || "";
     if (!cronSecret || requestSecret !== cronSecret) {
       return json({ error: "Unauthorized cron request" }, 401);

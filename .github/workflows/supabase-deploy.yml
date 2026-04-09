@@ -20,7 +20,7 @@ jobs:
       WECHAT_APPID: ${{ secrets.WECHAT_APPID }}
       WECHAT_SECRET: ${{ secrets.WECHAT_SECRET }}
       APP_JWT_SECRET: ${{ secrets.APP_JWT_SECRET }}
-      SUPABASE_CRON_SECRET: ${{ secrets.SUPABASE_CRON_SECRET }}
+      KBS_CRON_SECRET: ${{ secrets.KBS_CRON_SECRET }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -44,13 +44,13 @@ jobs:
         run: supabase db push
 
       - name: Set function runtime secrets
-        if: ${{ env.WECHAT_APPID != '' && env.WECHAT_SECRET != '' && env.APP_JWT_SECRET != '' && env.SUPABASE_CRON_SECRET != '' }}
+        if: ${{ env.WECHAT_APPID != '' && env.WECHAT_SECRET != '' && env.APP_JWT_SECRET != '' && env.KBS_CRON_SECRET != '' }}
         run: |
           supabase secrets set \
             WECHAT_APPID="$WECHAT_APPID" \
             WECHAT_SECRET="$WECHAT_SECRET" \
             APP_JWT_SECRET="$APP_JWT_SECRET" \
-            SUPABASE_CRON_SECRET="$SUPABASE_CRON_SECRET" \
+            KBS_CRON_SECRET="$KBS_CRON_SECRET" \
             --project-ref "$SUPABASE_PROJECT_ID"
 
       - name: Deploy Edge Functions

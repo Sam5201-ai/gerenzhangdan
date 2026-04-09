@@ -273,12 +273,12 @@
         
         <!-- 还款日期选择器 - 独立于灰色框外 -->
          <view class="payment-date-section" wx:if="{{confirmData.actionType === 'pay'}}">
-           <view class="payment-date-row">
+           <view class="payment-date-row horizontal">
              <text class="payment-date-label">还款日期</text>
              <picker mode="date" value="{{confirmData.paymentDate}}" start="2020-01-01" end="{{today}}" bindchange="selectConfirmPaymentDate">
                <view class="payment-date-selector">
                  <text class="{{confirmData.paymentDate ? 'date-text' : 'placeholder'}}">{{confirmData.paymentDate || '请选择日期'}}</text>
-                 <text class="calendar-icon">📅</text>
+                 <image class="calendar-svg-icon" src="/images/calendar.svg" mode="aspectFit"></image>
                </view>
              </picker>
            </view>

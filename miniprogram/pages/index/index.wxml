@@ -26,11 +26,12 @@
     <view wx:for="{{cardList}}" wx:key="id" class="credit-card card-gradient-{{item.style}}" bindtap="editCard" bindlongpress="deleteCard" data-id="{{item.id}}">
       <!-- 卡片背景装饰 -->
       <view class="card-decoration"></view>
+      <view class="card-name-floating">
+        <text class="card-name">{{item.name}}</text>
+      </view>
       
       <view class="card-header">
-        <view class="card-info">
-          <text class="card-name">{{item.name}}</text>
-        </view>
+        <view class="card-info"></view>
         <!-- 额度移到右上角 -->
         <view class="card-limit-corner">
           <text class="limit-value">¥{{item.limit}}</text>

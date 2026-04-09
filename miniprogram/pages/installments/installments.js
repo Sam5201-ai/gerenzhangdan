@@ -121,9 +121,12 @@ Page({
   loadInstallments: async function() {
     try {
       const installments = await this.billDataManager.getBillList();
+      const normalizedInstallments = this.sortInstallmentsByPaymentDate(
+        (installments || []).map(item => this.normalizeInstallment(item))
+      );
       return new Promise((resolve) => {
-        this.setData({ installments }, () => {
-          console.log('分期账单数据加载完成，共', installments.length, '条');
+        this.setData({ installments: normalizedInstallments }, () => {
+          console.log('分期账单数据加载完成，共', normalizedInstallments.length, '条');
           resolve();
         });
       });
@@ -170,65 +173,93 @@ Page({
   calculateStats: function () {
     const installments = this.data.installments;
     
-    // 1、分期总账单数：取当前该用户在分期页面中已创建的分期账单合计数量
     let totalCount = installments.length;
-    
-    // 2、已还清账单数：取当前该用户在分期页面中的分期账单的状态为已还清的账单数量合计（即已还分期数=分期笔数）
     let completedCount = 0;
-    
-    // 3、未还清账单数：取当前该用户在分期页面中的分期账单的状态为未还清的账单数量合计（即已还分期数小于分期笔数）
     let activeCount = 0;
-    
-    // 4、每期合计还款金额：取当前分期页面中所有状态为未还清的分期账单中的每期还款金额之和
     let monthlyTotalAmount = 0;
-    
-    // 5、累计账单总金额：取当前该用户在分期页面中已创建的分期账单合计账单总金额
     let totalBillAmount = 0;
-    
-    // 6、累计已还款金额：取当前该用户在分期页面中已创建的分期账单合计已还款金额
     let totalPaidAmount = 0;
-    
-    // 7、累计剩余还款金额：计算公式为=累计账单总金额-累计已还款金额
     let totalRemainingAmount = 0;
 
     installments.forEach(item => {
-      const itemTotalAmount = parseFloat(item.totalAmount.replace(/,/g, ''));
-      const itemPaidAmount = parseFloat(item.paidAmount.replace(/,/g, ''));
+      const itemTotalAmount = parseFloat(item.totalAmount) || 0;
+      const itemPaidAmount = parseFloat(item.paidAmount) || 0;
       const itemPaidCount = parseInt(item.paidCount) || 0;
       const itemTotalCount = parseInt(item.totalCount) || 0;
-      const itemMonthlyPayment = parseFloat(item.monthlyPayment.replace(/,/g, ''));
+      const itemMonthlyPayment = parseFloat(item.monthlyPayment) || 0;
       
-      // 判断是否已还清：已还分期数 = 分期笔数
       if (itemPaidCount >= itemTotalCount) {
         completedCount++;
       } else {
         activeCount++;
-        // 只有未还清的账单才计入每期合计还款金额
         monthlyTotalAmount += itemMonthlyPayment;
       }
       
-      // 累计所有账单的总金额和已还款金额
       totalBillAmount += itemTotalAmount;
       totalPaidAmount += itemPaidAmount;
     });
     
-    // 计算累计剩余还款金额
     totalRemainingAmount = totalBillAmount - totalPaidAmount;
 
     this.setData({
       'stats.totalCount': totalCount,
       'stats.completedCount': completedCount,
       'stats.activeCount': activeCount,
-      'stats.monthlyTotalAmount': this.formatNumber(monthlyTotalAmount),
-      'stats.totalAmount': this.formatNumber(totalBillAmount),
-      'stats.paidAmount': this.formatNumber(totalPaidAmount),
-      'stats.remainingAmount': this.formatNumber(totalRemainingAmount)
+      'stats.monthlyTotalAmount': this.formatAmount(monthlyTotalAmount),
+      'stats.totalAmount': this.formatAmount(totalBillAmount),
+      'stats.paidAmount': this.formatAmount(totalPaidAmount),
+      'stats.remainingAmount': this.formatAmount(totalRemainingAmount)
     });
   },
 
-  // 格式化数字
-  formatNumber: function (num) {
-    return num.toLocaleString();
+  formatAmount: function(num) {
+    const value = Number(num) || 0;
+    return value.toLocaleString('en-US', {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2
+    });
+  },
+
+  formatAmountWithThousands: function(num) {
+    const value = Number(num) || 0;
+    return value.toLocaleString('en-US', {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2
+    });
+  },
+
+  roundToTwo: function(num) {
+    return Number((Number(num) || 0).toFixed(2));
+  },
+
+  normalizeInstallment(item) {
+    const totalAmount = this.roundToTwo(item.totalAmount);
+    const paidAmount = this.roundToTwo(item.paidAmount);
+    const remainingAmount = this.roundToTwo(item.remainingAmount || (totalAmount - paidAmount));
+    const monthlyPayment = this.roundToTwo(item.monthlyPayment);
+    const paidCount = parseInt(item.paidCount) || 0;
+    const totalCount = parseInt(item.totalCount) || 0;
+    const progress = totalCount > 0 ? Math.min(100, Math.round((paidCount / totalCount) * 100)) : 0;
+    return {
+      ...item,
+      totalAmount: this.formatAmount(totalAmount),
+      paidAmount: this.formatAmount(paidAmount),
+      remainingAmount: this.formatAmount(remainingAmount),
+      monthlyPayment: this.formatAmount(monthlyPayment),
+      progress,
+      paidCount,
+      totalCount,
+      paymentDate: parseInt(item.paymentDate) || 15,
+      status: paidCount >= totalCount && totalCount > 0 ? 'completed' : (item.status || 'active')
+    };
+  },
+
+  sortInstallmentsByPaymentDate(list) {
+    return [...list].sort((a, b) => {
+      const dayDiff = (parseInt(a.paymentDate) || 99) - (parseInt(b.paymentDate) || 99);
+      if (dayDiff !== 0) return dayDiff;
+      return (a.cardName || '').localeCompare(b.cardName || '');
+    });
   },
 
   // 生成安全的唯一ID
@@ -339,8 +370,7 @@ Page({
     this.hideConfirmModal();
   },
 
-  // 执行还款操作
-  executePayment: async function (index) {
+  async executePayment(index) {
     const installments = this.data.installments;
     const installment = installments[index];
     
@@ -351,9 +381,9 @@ Page({
       const newPaidAmount = currentPaid + monthlyAmount;
       const totalAmount = parseFloat(installment.totalAmount.replace(/,/g, ''));
       
-      installment.paidAmount = this.formatNumber(newPaidAmount);
-      installment.remainingAmount = this.formatNumber(totalAmount - newPaidAmount);
-      installment.progress = Math.round((installment.paidCount / installment.totalCount) * 100);
+      installment.paidAmount = this.formatAmount(newPaidAmount);
+      installment.remainingAmount = this.formatAmount(totalAmount - newPaidAmount);
+      installment.progress = installment.totalCount > 0 ? Math.min(100, Math.round((installment.paidCount / installment.totalCount) * 100)) : 0;
       // 使用确认弹窗中选择的还款日期，并转换为系统格式
       const paymentDate = this.data.confirmData.paymentDate || this.formatDate(new Date());
       if (paymentDate.includes('-')) {
@@ -378,6 +408,9 @@ Page({
       
       // 添加还款记录到历史记录中
       try {
+        const cardDataManager = getCardDataManager();
+        const matchedCard = installment.cardId ? await cardDataManager.getCard(installment.cardId) : null;
+
         await this.billDataManager.addPaymentRecord(installment.id, {
           cardId: installment.cardId || '',
           amount: monthlyAmount,
@@ -385,7 +418,8 @@ Page({
           currentPeriod: installment.paidCount,
           totalPeriods: installment.totalCount,
           cardName: installment.cardName,
-          cardNumber: installment.cardNumber || ''
+          cardStyle: matchedCard?.style || installment.style || 'blue',
+          cardNumber: matchedCard?.cardNumber || installment.cardNumber || ''
         });
         console.log('还款记录已添加到历史记录');
       } catch (error) {
@@ -413,9 +447,9 @@ Page({
       const newPaidAmount = currentPaid - monthlyAmount;
       const totalAmount = parseFloat(installment.totalAmount.replace(/,/g, ''));
       
-      installment.paidAmount = this.formatNumber(Math.max(0, newPaidAmount));
-      installment.remainingAmount = this.formatNumber(totalAmount - Math.max(0, newPaidAmount));
-      installment.progress = Math.round((installment.paidCount / installment.totalCount) * 100);
+      installment.paidAmount = this.formatAmount(Math.max(0, newPaidAmount));
+      installment.remainingAmount = this.formatAmount(totalAmount - Math.max(0, newPaidAmount));
+      installment.progress = installment.totalCount > 0 ? Math.min(100, Math.round((installment.paidCount / installment.totalCount) * 100)) : 0;
       installment.status = 'active';
       
       // 清除最后还款日期记录
@@ -582,15 +616,7 @@ Page({
         icon: 'icon-credit-card',
         beforeCount: installment.paidCount,
         afterCount: installment.paidCount + 1,
-        paymentDate: installment.lastPaymentDate ? (() => {
-          // 如果已有最近还款日期，转换为YYYY-MM-DD格式
-          const lastDate = installment.lastPaymentDate.replace(/年|月|日/g, match => {
-            if (match === '年') return '-';
-            if (match === '月') return '-';
-            return '';
-          });
-          return lastDate;
-        })() : this.formatDate(new Date())
+        paymentDate: this.getTodayDateString()
       }
     });
   },
@@ -632,11 +658,15 @@ Page({
     });
   },
 
+  getTodayDateString: function () {
+    return new Date().toISOString().slice(0, 10);
+  },
+
   // 格式化日期
   formatDate: function (date) {
     const year = date.getFullYear();
-    const month = date.getMonth() + 1;
-    const day = date.getDate();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
     return `${year}年${month}月${day}日`;
   },
 
@@ -950,17 +980,17 @@ Page({
     const totalCount = parseInt(formData.totalCount);
     const paidCount = parseInt(formData.paidCount) || 0;
     
-    const installmentData = {
+    const installmentData = this.normalizeInstallment({
       cardId: selectedCard.id, // 添加cardId字段
       cardName: selectedCard.name.split(' (')[0],
       cardNumber: selectedCard.name.match(/\((.*)\)/)[1],
-      totalAmount: this.formatNumber(totalAmount),
+      totalAmount: totalAmount,
       totalCount: totalCount,
       paidCount: paidCount,
-      monthlyPayment: this.formatNumber(parseFloat(formData.monthlyPayment)),
+      monthlyPayment: parseFloat(formData.monthlyPayment),
       paymentDate: parseInt(formData.paymentDate),
-      paidAmount: this.formatNumber(paidAmount),
-      remainingAmount: this.formatNumber(totalAmount - paidAmount),
+      paidAmount: paidAmount,
+      remainingAmount: totalAmount - paidAmount,
       lastPaymentDate: formData.lastPaymentDate ? (() => {
         const parts = formData.lastPaymentDate.split('-');
         if (parts.length === 3) {
@@ -970,10 +1000,17 @@ Page({
       })() : '',
       progress: Math.round((paidCount / totalCount) * 100),
       status: paidCount >= totalCount ? 'completed' : 'active'
-    };
+    });
+    
+    // 先给用户即时反馈，避免等待保存过程误触重复提交
+    this.hideInstallmentPopup();
+    wx.showToast({
+      title: this.data.editingInstallment ? '编辑成功' : '添加成功',
+      icon: 'success'
+    });
     
     try {
-      if (this.data.editingInstallment) {
+    if (this.data.editingInstallment) {
         // 编辑模式：直接更新该账单
         const billId = this.data.editingInstallment.id;
         const res = await this.billDataManager.updateBill(billId, {
@@ -982,8 +1019,8 @@ Page({
         });
         if (!res || !res.success) {
           throw new Error(res?.error || '保存失败');
-        }
-      } else {
+      }
+    } else {
         // 添加模式：由 BillDataManager 生成云端/本地ID
         const res = await this.billDataManager.addBill(installmentData);
         if (!res || !res.success) {
@@ -999,12 +1036,6 @@ Page({
     await this.loadInstallments();
     
     this.calculateStats();
-    this.hideInstallmentPopup();
-    
-    wx.showToast({
-      title: this.data.editingInstallment ? '编辑成功' : '添加成功',
-      icon: 'success'
-    });
   },
 
   // 分享给朋友

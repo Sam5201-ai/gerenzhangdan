@@ -263,6 +263,18 @@ page .menu-item {
   text-overflow: ellipsis;
 }
 
+.menu-item-right {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12rpx;
+}
+
+.menu-version {
+  font-size: 24rpx;
+  color: #9ca3af;
+}
+
 .menu-arrow {
   font-size: 36rpx;
   color: #d1d5db;

@@ -6,6 +6,7 @@ const { getBillDataManager } = require('../../utils/BillDataManager')
 Page({
   data: {
     statusBarHeight: 0,
+    appVersion: getApp().globalData.appVersion,
     // 用户信息
     userInfo: {
       avatar: '',
@@ -84,33 +85,29 @@ Page({
       const cardDataManager = getCardDataManager()
       const billDataManager = getBillDataManager()
       
-      // 获取卡片数量
       const cards = await cardDataManager.getCardList()
       const cardCount = cards ? cards.length : 0
-      
-      // 计算总额度
-      let totalLimit = 0
-      if (cards) {
-        cards.forEach(card => {
-          if (card.limit) {
-            const cardLimit = parseFloat(card.limit.toString().replace(/,/g, '')) || 0
-            totalLimit += cardLimit
-          }
-        })
-      }
-      
-      // 获取分期账单数量
       const bills = await billDataManager.getBillList()
-      const installmentCount = bills ? bills.length : 0
-      
-      // 格式化总额度数字
-      const formattedTotalLimit = totalLimit.toLocaleString()
+      const billList = bills || []
+
+      let totalRemainingAmount = 0
+      let monthlyPaymentTotal = 0
+      billList.forEach(bill => {
+        const remainingAmount = parseFloat((bill.remainingAmount || '0').toString().replace(/,/g, '')) || 0
+        const monthlyPayment = parseFloat((bill.monthlyPayment || '0').toString().replace(/,/g, '')) || 0
+        totalRemainingAmount += remainingAmount
+        if ((parseInt(bill.paidCount) || 0) < (parseInt(bill.totalCount) || 0)) {
+          monthlyPaymentTotal += monthlyPayment
+        }
+      })
+
+      const remainingPeriods = monthlyPaymentTotal > 0 ? Math.round(totalRemainingAmount / monthlyPaymentTotal) : 0
       
       this.setData({
         stats: {
           cardCount,
-          totalLimit: formattedTotalLimit,
-          installmentCount
+          totalLimit: Math.round(totalRemainingAmount).toString(),
+          installmentCount: remainingPeriods
         }
       })
     } catch (error) {

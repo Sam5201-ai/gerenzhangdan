@@ -245,8 +245,34 @@ page {
   transform: rotate(25deg);
 }
 
-.card-gradient-pink {
-  background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
+.card-header,
+.card-number,
+.card-footer,
+.card-info,
+.card-limit-corner,
+.card-name-floating {
+  position: relative;
+  z-index: 3;
+}
+
+.card-name-floating {
+  position: absolute;
+  top: 24rpx;
+  left: 24rpx;
+  right: 180rpx;
+  z-index: 10;
+}
+
+.card-name {
+  display: block;
+  color: #ffffff;
+  font-size: 32rpx;
+  font-weight: 700;
+  line-height: 1.2;
+  text-shadow: 0 2rpx 10rpx rgba(0, 0, 0, 0.16);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* 粉色卡片装饰 - 花瓣心形风格 */
@@ -273,7 +299,7 @@ page {
 /* 卡片头部 */
 .card-header {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-end;
   align-items: flex-start;
   margin-bottom: 40rpx;
   position: relative;
@@ -284,12 +310,8 @@ page {
   display: flex;
   flex-direction: column;
   gap: 6rpx;
-}
-
-.card-name {
-  font-size: 32rpx;
-  font-weight: 700;
-  color: white;
+  position: relative;
+  z-index: 4;
 }
 
 /* 右上角额度 */

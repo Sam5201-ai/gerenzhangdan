@@ -2,6 +2,8 @@
 const { getBillDataManager } = require('../../utils/BillDataManager.js')
 const { getCardDataManager } = require('../../utils/CardDataManager.js')
 
+const HIDDEN_PAYMENT_RECORDS_KEY = 'hidden_payment_records'
+
 Page({
   data: {
     statusBarHeight: 0,
@@ -80,6 +82,9 @@ Page({
   async loadBankList() {
     try {
       const cardList = await this.cardDataManager.getCardList()
+      this._cardStyleCache = cardList || []
+      const billList = await this.billDataManager.getBillList({ useCache: false })
+      this._billCache = billList || []
       const bankSet = new Set()
       
       cardList.forEach(card => {
@@ -101,6 +106,7 @@ Page({
     try {
       // 直接从还款历史记录中获取数据（不使用缓存，确保获取最新数据）
       const paymentHistory = await this.billDataManager.getPaymentHistory({ useCache: false })
+      this._paymentHistoryCache = paymentHistory || []
       
       console.log('获取到的还款历史记录:', paymentHistory)
       console.log('还款历史记录数量:', paymentHistory ? paymentHistory.length : 0)
@@ -117,31 +123,25 @@ Page({
       }
       
       // 处理还款历史数据
-      const records = paymentHistory.map(record => {
-        // 优先使用 createdAt 作为真实的还款时间
-        let paymentDate = new Date()
-        if (record.createdAt) {
-          // 使用创建时间作为真实的还款时间
-          paymentDate = new Date(record.createdAt)
-        } else if (record.paymentDate) {
-          // 兼容旧数据：解析日期格式：2024年10月20日
-          const dateMatch = record.paymentDate.match(/(\d{4})年(\d{1,2})月(\d{1,2})日/)
-          if (dateMatch) {
-            const [, year, month, day] = dateMatch
-            // 设置一个合理的还款时间（上午10点）
-            paymentDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day), 10, 0, 0)
-          }
-        }
+      const hiddenIds = this.getHiddenPaymentRecordIds()
+      const records = paymentHistory
+        .filter(record => !hiddenIds.includes(record.id))
+        .map(record => {
+        let paymentDate = this.parsePaymentDate(record.paymentDate, record.createdAt)
         
         return {
           id: record.id,
-          billId: record.billId, // 保存billId用于删除操作
+          billId: record.billId,
           bankName: record.cardName || '未知银行',
           cardNumber: record.cardNumber || '',
-          cardStyle: 'blue', // 默认样式
+          cardStyle: record.cardStyle || this.getCardStyleByName(record.cardName),
           amount: parseFloat(record.amount) || 0,
-          currentPeriod: record.currentPeriod || 1,
-          totalPeriods: record.totalPeriods || 1,
+          currentPeriod: this.shouldDeriveCurrentPeriod(record)
+            ? this.deriveCurrentPeriod(record)
+            : Number(record.currentPeriod),
+          totalPeriods: this.shouldDeriveCurrentPeriod(record)
+            ? this.deriveTotalPeriods(record)
+            : Number(record.totalPeriods),
           paymentTime: paymentDate.toISOString(),
           formattedTime: this.formatTime(paymentDate.toISOString()),
           paymentMonth: `${paymentDate.getFullYear()}-${String(paymentDate.getMonth() + 1).padStart(2, '0')}`
@@ -270,6 +270,114 @@ Page({
         groupedRecords: []
       })
     }
+  },
+
+  getCardStyleByName(cardName) {
+    const cards = this._cardStyleCache || []
+    const matched = cards.find(card => card.name === cardName)
+    return matched?.style || 'blue'
+  },
+
+  shouldDeriveCurrentPeriod(record) {
+    const current = Number(record?.currentPeriod || 0)
+    const total = Number(record?.totalPeriods || 0)
+    if (current <= 0) return true
+    if (total <= 0) return true
+
+    const history = this._paymentHistoryCache || []
+    const sameBillCount = history.filter(item => item.billId === record.billId).length
+    if (sameBillCount > 1 && current === 1 && total === 1) return true
+
+    return false
+  },
+
+  deriveCurrentPeriod(record) {
+    const history = this._paymentHistoryCache || []
+    const sameBillRecords = history
+      .filter(item => item.billId === record.billId)
+      .slice()
+      .sort((a, b) => {
+        const dateDiff = this.parsePaymentDate(a.paymentDate, a.createdAt) - this.parsePaymentDate(b.paymentDate, b.createdAt)
+        if (dateDiff !== 0) return dateDiff
+        return new Date(a.createdAt || 0) - new Date(b.createdAt || 0)
+      })
+
+    const recordIndex = sameBillRecords.findIndex(item => item.id === record.id)
+    if (recordIndex >= 0) return recordIndex + 1
+
+    const explicitCurrent = Number(record?.currentPeriod || 0)
+    if (explicitCurrent > 0) return explicitCurrent
+
+    const bill = this.findBillById(record.billId)
+    return bill?.paidCount || 1
+  },
+
+  deriveTotalPeriods(record) {
+    const explicitTotal = Number(record?.totalPeriods || 0)
+    if (explicitTotal > 0 && !(explicitTotal === 1 && this.shouldDeriveCurrentPeriod(record))) {
+      return explicitTotal
+    }
+    const bill = this.findBillById(record.billId)
+    return bill?.totalCount || 1
+  },
+
+  findBillById(billId) {
+    const bills = this._billCache || []
+    return bills.find(item => item.id === billId) || null
+  },
+
+  parsePaymentDate(paymentDateValue, createdAtValue) {
+    if (paymentDateValue) {
+      const raw = String(paymentDateValue)
+      const cn = raw.match(/(\d{4})年(\d{1,2})月(\d{1,2})日/)
+      if (cn) {
+        return new Date(parseInt(cn[1]), parseInt(cn[2]) - 1, parseInt(cn[3]), 10, 0, 0)
+      }
+      const ymd = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/)
+      if (ymd) {
+        return new Date(parseInt(ymd[1]), parseInt(ymd[2]) - 1, parseInt(ymd[3]), 10, 0, 0)
+      }
+      const dt = new Date(raw)
+      if (!isNaN(dt.getTime())) return dt
+    }
+    if (createdAtValue) {
+      const dt = new Date(createdAtValue)
+      if (!isNaN(dt.getTime())) return dt
+    }
+    return new Date()
+  },
+
+  getHiddenPaymentRecordIds() {
+    try {
+      return wx.getStorageSync(HIDDEN_PAYMENT_RECORDS_KEY) || []
+    } catch (e) {
+      return []
+    }
+  },
+
+  saveHiddenPaymentRecordIds(ids) {
+    try {
+      wx.setStorageSync(HIDDEN_PAYMENT_RECORDS_KEY, ids)
+    } catch (e) {
+      console.warn('保存隐藏还款记录失败', e)
+    }
+  },
+
+  handleDeleteRecord(e) {
+    const id = e.currentTarget.dataset.id
+    if (!id) return
+    wx.showModal({
+      title: '隐藏记录',
+      content: '确定隐藏这条还款记录吗？该操作不会影响分期账单数据。',
+      success: (res) => {
+        if (!res.confirm) return
+        const ids = this.getHiddenPaymentRecordIds()
+        if (!ids.includes(id)) ids.push(id)
+        this.saveHiddenPaymentRecordIds(ids)
+        this.loadPaymentRecords()
+        wx.showToast({ title: '已隐藏', icon: 'success' })
+      }
+    })
   },
 
   // 按月份分组记录

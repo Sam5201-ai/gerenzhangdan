@@ -314,16 +314,21 @@ class BillDataManager {
   
   // 验证和清理账单数据
   validateAndCleanBill(billData) {
+    const totalAmount = this.normalizeMoneyValue(billData.totalAmount || '0');
+    const monthlyPayment = this.normalizeMoneyValue(billData.monthlyPayment || '0');
+    const paidAmount = this.normalizeMoneyValue(billData.paidAmount || '0');
+    const remainingAmount = this.normalizeMoneyValue(billData.remainingAmount || (Number(totalAmount) - Number(paidAmount)));
+
     const cleaned = {
       cardId: billData.cardId || '',
       cardName: billData.cardName || '',
-      totalAmount: billData.totalAmount || '0',
+      totalAmount,
       totalCount: parseInt(billData.totalCount) || 0,
-      monthlyPayment: billData.monthlyPayment || '0',
+      monthlyPayment,
       paymentDate: billData.paymentDate || '15',
       paidCount: parseInt(billData.paidCount) || 0,
-      paidAmount: billData.paidAmount || '0',
-      remainingAmount: billData.remainingAmount || '0',
+      paidAmount,
+      remainingAmount,
       progress: parseInt(billData.progress) || 0,
       status: billData.status || 'active',
       lastPaymentDate: billData.lastPaymentDate || ''
@@ -335,6 +340,11 @@ class BillDataManager {
   // 生成安全ID
   generateSecureId() {
     return 'bill_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+  }
+
+  normalizeMoneyValue(value) {
+    const num = Number(String(value || '0').replace(/,/g, '')) || 0;
+    return num.toFixed(2);
   }
   
   // 添加还款记录
@@ -352,11 +362,13 @@ class BillDataManager {
         currentPeriod: paymentData.currentPeriod,
         totalPeriods: paymentData.totalPeriods,
         cardName: paymentData.cardName,
+        cardStyle: paymentData.cardStyle || 'blue',
         cardNumber: paymentData.cardNumber || '',
         createdAt: new Date().toISOString()
       };
       
       paymentHistory.push(newRecord);
+      paymentHistory.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
       
       await this.storageManager.setData(this.PAYMENT_HISTORY_KEY, paymentHistory, {
         immediate: true,
@@ -370,6 +382,10 @@ class BillDataManager {
             card_id: resolvedCardId || null,
             bill_id: billId,
             card_name: paymentData.cardName,
+            card_style: paymentData.cardStyle || 'blue',
+            card_number: paymentData.cardNumber || '',
+            current_period: paymentData.currentPeriod || 1,
+            total_periods: paymentData.totalPeriods || 1,
             amount: paymentData.amount ? Number(String(paymentData.amount).replace(/,/g, '')) : 0,
             payment_date: this.normalizeDateString(paymentData.paymentDate) || new Date().toISOString().slice(0, 10),
             remaining_periods: (paymentData.totalPeriods != null && paymentData.currentPeriod != null)
@@ -394,13 +410,17 @@ class BillDataManager {
       if (this.cloudApi.isEnabled()) {
         const resp = await this.cloudApi.call('repayments.list');
         const rows = (resp && resp.data) ? resp.data : [];
-        // 兼容页面当前字段结构（仍保留 billId / paymentDate / amount / cardName）
         const history = rows.map(r => ({
           id: r.id,
           billId: r.bill_id || '',
+          cardId: r.card_id || '',
           amount: r.amount != null ? String(r.amount) : '0',
           paymentDate: r.payment_date,
           cardName: r.card_name || '',
+          currentPeriod: r.current_period != null ? Number(r.current_period) : null,
+          totalPeriods: r.total_periods != null ? Number(r.total_periods) : null,
+          cardStyle: r.card_style || 'blue',
+          cardNumber: r.card_number || '',
           createdAt: r.created_at || new Date().toISOString()
         }));
         await this.storageManager.setData(this.PAYMENT_HISTORY_KEY, history, { immediate: false });
@@ -456,6 +476,19 @@ class BillDataManager {
         immediate: true,
         priority: 'high'
       });
+
+      if (this.cloudApi.isEnabled() && lastRecord.id) {
+        try {
+          await this.cloudApi.call('repayments.delete', { id: lastRecord.id });
+        } catch (error) {
+          const msg = String(error && error.message ? error.message : error);
+          if (msg.includes('Unknown action')) {
+            console.warn('云端尚未部署 repayments.delete，已跳过远端删除');
+          } else {
+            throw error;
+          }
+        }
+      }
       
       return { success: true, removedRecord: lastRecord };
     } catch (error) {

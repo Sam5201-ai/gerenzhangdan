@@ -192,6 +192,10 @@ Deno.serve(async (req) => {
       card_id: r.card_id ?? null,
       bill_id: r.bill_id ?? null,
       card_name: r.card_name ?? null,
+      card_style: r.card_style ?? null,
+      card_number: r.card_number ?? null,
+      current_period: r.current_period ?? null,
+      total_periods: r.total_periods ?? null,
       amount: r.amount ?? 0,
       payment_date: r.payment_date,
       remaining_periods: r.remaining_periods ?? null,
@@ -199,6 +203,14 @@ Deno.serve(async (req) => {
     const { data, error } = await supabase.from("repayment_records").insert(row).select("*").single();
     if (error) return json({ error: "repayments.add failed", detail: error }, 500);
     return json({ data }, 200);
+  }
+
+  if (action === "repayments.delete") {
+    const id = payload?.id;
+    if (!id) return json({ error: "Missing id" }, 400);
+    const { error } = await supabase.from("repayment_records").delete().eq("openid", openid).eq("id", id);
+    if (error) return json({ error: "repayments.delete failed", detail: error }, 500);
+    return json({ ok: true }, 200);
   }
 
   return json({ error: "Unknown action" }, 400);

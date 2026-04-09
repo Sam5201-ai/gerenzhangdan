@@ -53,7 +53,7 @@
         </view>
 
         <!-- 还款记录卡片 -->
-        <view wx:for="{{item.records}}" wx:key="id" wx:for-item="record" class="payment-card">
+        <view wx:for="{{item.records}}" wx:key="id" wx:for-item="record" class="payment-card" bindlongpress="handleDeleteRecord" data-id="{{record.id}}">
           <view class="card-main">
             <view class="card-left">
               <view class="card-icon card-gradient-{{record.cardStyle}}">

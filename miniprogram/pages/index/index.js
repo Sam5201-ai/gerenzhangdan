@@ -450,7 +450,6 @@ Page({
     const { formData, selectedStyle, reminderEnabled, selectedReminderDays, editingCardId } = this.data
     
     try {
-      // 构建卡片数据
       const cardData = {
         name: formData.name,
         cardNumber: formData.cardNumber,
@@ -460,25 +459,20 @@ Page({
         reminderEnabled: reminderEnabled,
         reminderDays: selectedReminderDays
       }
-      
-      // 保存卡片数据
-      if (editingCardId) {
-        await this.cardDataManager.updateCard(editingCardId, cardData)
-      } else {
-        await this.cardDataManager.addCard(cardData)
-      }
-      
-      // 立即关闭弹窗（提升响应速度）
+
       this.hideCardPopup()
-      
-      // 显示成功提示
       wx.showToast({
         title: editingCardId ? '修改成功' : '添加成功',
         icon: 'success',
         duration: 500
       })
       
-      // 后台异步刷新列表（不阻塞UI）
+      if (editingCardId) {
+        await this.cardDataManager.updateCard(editingCardId, cardData)
+      } else {
+        await this.cardDataManager.addCard(cardData)
+      }
+      
       setTimeout(() => {
         this.loadCardList({ showLoading: false, useCache: false })
       }, 100)
@@ -486,7 +480,6 @@ Page({
     } catch (error) {
       console.error('[卡包页面] 保存卡片失败:', error)
       
-      // 显示具体错误信息
       wx.showToast({
         title: error.message || '保存失败',
         icon: 'none',

@@ -108,6 +108,6 @@ App({
   
   globalData: {
     // 全局数据
-    appVersion: '1.0.0',     // 应用版本
+    appVersion: '1.0.5',     // 应用版本
   }
 });

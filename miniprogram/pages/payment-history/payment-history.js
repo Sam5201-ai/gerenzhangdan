@@ -43,6 +43,8 @@ Page({
     // 初始化管理器
     this.billDataManager = getBillDataManager()
     this.cardDataManager = getCardDataManager()
+    this._hasLoadedOnce = false
+    this._lastVisibleRefreshAt = 0
     
     // 生成年份列表（最近5年）
     const currentYear = new Date().getFullYear()
@@ -54,6 +56,17 @@ Page({
     
     // 先用缓存秒开，再后台静默同步云端
     this.loadData({ useCache: true, silent: true, backgroundSync: true })
+  },
+
+  onShow() {
+    if (!this._hasLoadedOnce) return
+
+    const now = Date.now()
+    if (now - (this._lastVisibleRefreshAt || 0) < 1500) return
+    this._lastVisibleRefreshAt = now
+
+    this.loadPaymentRecords({ useCache: true })
+    this.silentRefreshFromCloud()
   },
 
   // 加载数据
@@ -70,6 +83,7 @@ Page({
       
       // 加载还款记录
       await this.loadPaymentRecords({ useCache })
+      this._hasLoadedOnce = true
       
       if (!silent) {
         wx.hideLoading()
@@ -135,12 +149,18 @@ Page({
         return
       }
       
+      const resolvedPeriods = this.resolvePaymentPeriods(paymentHistory)
+
       // 处理还款历史数据
       const hiddenIds = this.getHiddenPaymentRecordIds()
       const records = paymentHistory
         .filter(record => !hiddenIds.includes(record.id))
         .map(record => {
-        let paymentDate = this.parsePaymentDate(record.paymentDate, record.createdAt)
+        const paymentDate = this.parsePaymentDate(record.paymentDate, record.confirmedAt || record.createdAt)
+        const resolvedPeriod = resolvedPeriods[record.id] || {}
+        const currentPeriod = Number(resolvedPeriod.currentPeriod || record.currentPeriod || 0)
+        const totalPeriods = Number(resolvedPeriod.totalPeriods || record.totalPeriods || 0)
+        const hasExplicitPeriod = currentPeriod > 0 && totalPeriods > 0
         
         return {
           id: record.id,
@@ -149,12 +169,12 @@ Page({
           cardNumber: record.cardNumber || '',
           cardStyle: record.cardStyle || this.getCardStyleByName(record.cardName),
           amount: parseFloat(record.amount) || 0,
-          currentPeriod: this.shouldDeriveCurrentPeriod(record)
-            ? this.deriveCurrentPeriod(record)
-            : Number(record.currentPeriod),
-          totalPeriods: this.shouldDeriveCurrentPeriod(record)
-            ? this.deriveTotalPeriods(record)
-            : Number(record.totalPeriods),
+          currentPeriod: hasExplicitPeriod
+            ? currentPeriod
+            : this.deriveCurrentPeriod(record),
+          totalPeriods: hasExplicitPeriod
+            ? totalPeriods
+            : this.deriveTotalPeriods(record),
           paymentTime: paymentDate.toISOString(),
           formattedTime: this.formatTime(paymentDate.toISOString()),
           paymentMonth: `${paymentDate.getFullYear()}-${String(paymentDate.getMonth() + 1).padStart(2, '0')}`
@@ -308,14 +328,50 @@ Page({
   shouldDeriveCurrentPeriod(record) {
     const current = Number(record?.currentPeriod || 0)
     const total = Number(record?.totalPeriods || 0)
-    if (current <= 0) return true
-    if (total <= 0) return true
+    return current <= 0 || total <= 0
+  },
 
-    const history = this._paymentHistoryCache || []
-    const sameBillCount = history.filter(item => item.billId === record.billId).length
-    if (sameBillCount > 1 && current === 1 && total === 1) return true
+  resolvePaymentPeriods(history = []) {
+    const resolved = {}
+    const grouped = {}
 
-    return false
+    history.forEach(record => {
+      if (!record?.id) return
+      const key = record.billId || `__no_bill__${record.id}`
+      if (!grouped[key]) grouped[key] = []
+      grouped[key].push(record)
+    })
+
+    Object.values(grouped).forEach(records => {
+      const sortedRecords = records.slice().sort((a, b) => {
+        const dateDiff = this.parsePaymentDate(a.paymentDate, a.confirmedAt || a.createdAt) - this.parsePaymentDate(b.paymentDate, b.confirmedAt || b.createdAt)
+        if (dateDiff !== 0) return dateDiff
+        return new Date(a.confirmedAt || a.createdAt || 0) - new Date(b.confirmedAt || b.createdAt || 0)
+      })
+
+      const totalCandidates = sortedRecords
+        .map(item => Number(item.totalPeriods || 0))
+        .filter(num => num > 0)
+      const fallbackTotal = totalCandidates.length > 0
+        ? Math.max(...totalCandidates)
+        : (this.findBillById(sortedRecords[0]?.billId)?.totalCount || sortedRecords.length || 1)
+
+      const explicitCurrents = sortedRecords.map(item => Number(item.currentPeriod || 0))
+      const invalidCurrent = explicitCurrents.some(num => num <= 0 || num > fallbackTotal)
+      const duplicateCurrent = new Set(explicitCurrents.filter(num => num > 0)).size !== explicitCurrents.filter(num => num > 0).length
+      const allSameCurrent = explicitCurrents.length > 1 && explicitCurrents.every(num => num > 0 && num === explicitCurrents[0])
+      const notSequential = explicitCurrents.some((num, index) => num > 0 && Math.abs(num - (index + 1)) > 1)
+      const shouldRepair = invalidCurrent || duplicateCurrent || allSameCurrent || notSequential
+
+      sortedRecords.forEach((record, index) => {
+        resolved[record.id] = {
+          currentPeriod: shouldRepair ? index + 1 : Number(record.currentPeriod || 0),
+          totalPeriods: Number(record.totalPeriods || 0) > 0 ? Number(record.totalPeriods) : fallbackTotal
+        }
+      })
+    })
+
+    return resolved
   },
 
   deriveCurrentPeriod(record) {
@@ -354,22 +410,43 @@ Page({
   },
 
   parsePaymentDate(paymentDateValue, createdAtValue) {
+    const confirmedDate = createdAtValue ? new Date(createdAtValue) : null
+    const confirmedHours = confirmedDate && !isNaN(confirmedDate.getTime()) ? confirmedDate.getHours() : 10
+    const confirmedMinutes = confirmedDate && !isNaN(confirmedDate.getTime()) ? confirmedDate.getMinutes() : 0
+    const confirmedSeconds = confirmedDate && !isNaN(confirmedDate.getTime()) ? confirmedDate.getSeconds() : 0
+    const confirmedMs = confirmedDate && !isNaN(confirmedDate.getTime()) ? confirmedDate.getMilliseconds() : 0
+
     if (paymentDateValue) {
       const raw = String(paymentDateValue)
       const cn = raw.match(/(\d{4})年(\d{1,2})月(\d{1,2})日/)
       if (cn) {
-        return new Date(parseInt(cn[1]), parseInt(cn[2]) - 1, parseInt(cn[3]), 10, 0, 0)
+        return new Date(
+          parseInt(cn[1]),
+          parseInt(cn[2]) - 1,
+          parseInt(cn[3]),
+          confirmedHours,
+          confirmedMinutes,
+          confirmedSeconds,
+          confirmedMs
+        )
       }
       const ymd = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/)
       if (ymd) {
-        return new Date(parseInt(ymd[1]), parseInt(ymd[2]) - 1, parseInt(ymd[3]), 10, 0, 0)
+        return new Date(
+          parseInt(ymd[1]),
+          parseInt(ymd[2]) - 1,
+          parseInt(ymd[3]),
+          confirmedHours,
+          confirmedMinutes,
+          confirmedSeconds,
+          confirmedMs
+        )
       }
       const dt = new Date(raw)
       if (!isNaN(dt.getTime())) return dt
     }
-    if (createdAtValue) {
-      const dt = new Date(createdAtValue)
-      if (!isNaN(dt.getTime())) return dt
+    if (confirmedDate && !isNaN(confirmedDate.getTime())) {
+      return confirmedDate
     }
     return new Date()
   },

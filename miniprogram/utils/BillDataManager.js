@@ -346,15 +346,30 @@ class BillDataManager {
     const num = Number(String(value || '0').replace(/,/g, '')) || 0;
     return num.toFixed(2);
   }
+
+  async getLocalPaymentHistory() {
+    try {
+      const history = await this.storageManager.getData(this.PAYMENT_HISTORY_KEY, {
+        useCache: true,
+        maxAge: 365 * 24 * 60 * 60 * 1000
+      });
+      return Array.isArray(history) ? history : [];
+    } catch (error) {
+      console.error('获取本地还款历史失败:', error);
+      return [];
+    }
+  }
   
   // 添加还款记录
   async addPaymentRecord(billId, paymentData) {
     try {
-      const paymentHistory = await this.getPaymentHistory({ useCache: false });
+      const paymentHistory = await this.getLocalPaymentHistory();
       const resolvedCardId = await this.resolveCardIdForPayment(billId, paymentData);
+      const createdAt = paymentData.createdAt || new Date().toISOString();
       
       const newRecord = {
         id: this.generatePaymentId(),
+        cloudId: '',
         billId: billId,
         cardId: resolvedCardId || '',
         amount: paymentData.amount,
@@ -364,11 +379,12 @@ class BillDataManager {
         cardName: paymentData.cardName,
         cardStyle: paymentData.cardStyle || 'blue',
         cardNumber: paymentData.cardNumber || '',
-        createdAt: new Date().toISOString()
+        createdAt,
+        confirmedAt: createdAt
       };
       
       paymentHistory.push(newRecord);
-      paymentHistory.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+      paymentHistory.sort((a, b) => new Date(b.confirmedAt || b.createdAt || 0) - new Date(a.confirmedAt || a.createdAt || 0));
       
       await this.storageManager.setData(this.PAYMENT_HISTORY_KEY, paymentHistory, {
         immediate: true,
@@ -377,7 +393,7 @@ class BillDataManager {
 
       // 云端追加（独立明细表）
       if (this.cloudApi.isEnabled()) {
-        await this.cloudApi.call('repayments.add', {
+        const resp = await this.cloudApi.call('repayments.add', {
           record: {
             card_id: resolvedCardId || null,
             bill_id: billId,
@@ -386,6 +402,21 @@ class BillDataManager {
             payment_date: this.normalizeDateString(paymentData.paymentDate) || new Date().toISOString().slice(0, 10)
           }
         });
+
+        const cloudRecord = resp?.data || null;
+        if (cloudRecord?.id) {
+          newRecord.cloudId = cloudRecord.id;
+          newRecord.id = cloudRecord.id;
+          const updatedHistory = paymentHistory.map(record => {
+            if (record === newRecord) return { ...newRecord };
+            return record;
+          });
+          await this.storageManager.setData(this.PAYMENT_HISTORY_KEY, updatedHistory, {
+            immediate: true,
+            priority: 'high'
+          });
+          return { success: true, record: { ...newRecord } };
+        }
       }
       
       return { success: true, record: newRecord };
@@ -401,21 +432,37 @@ class BillDataManager {
     
     try {
       if (this.cloudApi.isEnabled()) {
+        let localHistory = [];
+        try {
+          const cached = await this.storageManager.getData(this.PAYMENT_HISTORY_KEY, {
+            useCache: true,
+            maxAge
+          });
+          localHistory = Array.isArray(cached) ? cached : [];
+        } catch (e) {
+          localHistory = [];
+        }
+
         const resp = await this.cloudApi.call('repayments.list');
         const rows = (resp && resp.data) ? resp.data : [];
-        const history = rows.map(r => ({
-          id: r.id,
-          billId: r.bill_id || '',
-          cardId: r.card_id || '',
-          amount: r.amount != null ? String(r.amount) : '0',
-          paymentDate: r.payment_date,
-          cardName: r.card_name || '',
-          currentPeriod: null,
-          totalPeriods: null,
-          cardStyle: 'blue',
-          cardNumber: '',
-          createdAt: r.created_at || new Date().toISOString()
-        }));
+        const history = rows.map(r => {
+          const localRecord = localHistory.find(item => item.id === r.id || item.cloudId === r.id) || null;
+          return {
+            id: r.id,
+            cloudId: r.id,
+            billId: r.bill_id || '',
+            cardId: r.card_id || '',
+            amount: r.amount != null ? String(r.amount) : '0',
+            paymentDate: r.payment_date,
+            cardName: r.card_name || '',
+            currentPeriod: localRecord?.currentPeriod != null ? Number(localRecord.currentPeriod) : null,
+            totalPeriods: localRecord?.totalPeriods != null ? Number(localRecord.totalPeriods) : null,
+            cardStyle: localRecord?.cardStyle || 'blue',
+            cardNumber: localRecord?.cardNumber || '',
+            createdAt: r.created_at || localRecord?.createdAt || new Date().toISOString(),
+            confirmedAt: localRecord?.confirmedAt || localRecord?.createdAt || r.created_at || new Date().toISOString()
+          };
+        });
         await this.storageManager.setData(this.PAYMENT_HISTORY_KEY, history, { immediate: false });
         return history;
       }
@@ -454,20 +501,23 @@ class BillDataManager {
         return { success: false, error: '缺少还款记录ID' };
       }
 
-      const paymentHistory = await this.getPaymentHistory({ useCache: false });
-      const targetRecord = paymentHistory.find(record => record.id === recordId);
+      const paymentHistory = await this.getLocalPaymentHistory();
+      const targetRecord = paymentHistory.find(record => record.id === recordId || record.cloudId === recordId);
       if (!targetRecord) {
         return { success: false, error: '没有找到还款记录' };
       }
 
-      const updatedHistory = paymentHistory.filter(record => record.id !== recordId);
+      const updatedHistory = paymentHistory.filter(record => record.id !== targetRecord.id && record.cloudId !== targetRecord.cloudId);
       await this.storageManager.setData(this.PAYMENT_HISTORY_KEY, updatedHistory, {
         immediate: true,
         priority: 'high'
       });
 
       if (this.cloudApi.isEnabled()) {
-        await this.cloudApi.call('repayments.delete', { id: recordId });
+        const cloudRecordId = targetRecord.cloudId || targetRecord.id || await this.findCloudPaymentRecordId(targetRecord);
+        if (cloudRecordId) {
+          await this.cloudApi.call('repayments.delete', { id: cloudRecordId });
+        }
       }
 
       return { success: true, removedRecord: targetRecord };
@@ -480,7 +530,7 @@ class BillDataManager {
   // 删除还款记录（用于撤销还款）
   async removeLastPaymentRecord(billId) {
     try {
-      const paymentHistory = await this.getPaymentHistory({ useCache: false });
+      const paymentHistory = await this.getLocalPaymentHistory();
       
       // 找到该账单的最后一条还款记录
       const billRecords = paymentHistory.filter(record => record.billId === billId);
@@ -489,20 +539,23 @@ class BillDataManager {
       }
       
       // 按时间排序，找到最新的记录
-      billRecords.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      billRecords.sort((a, b) => new Date(b.confirmedAt || b.createdAt || 0) - new Date(a.confirmedAt || a.createdAt || 0));
       const lastRecord = billRecords[0];
       
       // 从历史记录中删除
-      const updatedHistory = paymentHistory.filter(record => record.id !== lastRecord.id);
+      const updatedHistory = paymentHistory.filter(record => record.id !== lastRecord.id && record.cloudId !== lastRecord.cloudId);
       
       await this.storageManager.setData(this.PAYMENT_HISTORY_KEY, updatedHistory, {
         immediate: true,
         priority: 'high'
       });
 
-      if (this.cloudApi.isEnabled() && lastRecord.id) {
+      if (this.cloudApi.isEnabled() && (lastRecord.cloudId || lastRecord.id || lastRecord.billId)) {
         try {
-          await this.cloudApi.call('repayments.delete', { id: lastRecord.id });
+          const cloudRecordId = lastRecord.cloudId || lastRecord.id || await this.findCloudPaymentRecordId(lastRecord);
+          if (cloudRecordId) {
+            await this.cloudApi.call('repayments.delete', { id: cloudRecordId });
+          }
         } catch (error) {
           const msg = String(error && error.message ? error.message : error);
           if (msg.includes('Unknown action')) {
@@ -520,6 +573,34 @@ class BillDataManager {
     }
   }
   
+  async findCloudPaymentRecordId(targetRecord) {
+    if (!this.cloudApi.isEnabled() || !targetRecord) return null;
+
+    try {
+      const resp = await this.cloudApi.call('repayments.list');
+      const rows = Array.isArray(resp?.data) ? resp.data : [];
+      const targetAmount = Number(String(targetRecord.amount || '0').replace(/,/g, '')) || 0;
+      const targetDate = this.normalizeDateString(targetRecord.paymentDate);
+      const targetCreatedAt = targetRecord.confirmedAt || targetRecord.createdAt || '';
+
+      const matched = rows.find(item => {
+        const sameBillId = String(item.bill_id || '') === String(targetRecord.billId || '');
+        const sameAmount = Number(item.amount || 0) === targetAmount;
+        const sameDate = String(item.payment_date || '') === String(targetDate || '');
+        const sameCardName = String(item.card_name || '') === String(targetRecord.cardName || '');
+        const sameCreatedAt = targetCreatedAt && item.created_at
+          ? Math.abs(new Date(item.created_at).getTime() - new Date(targetCreatedAt).getTime()) < 60 * 1000
+          : true;
+        return sameBillId && sameAmount && sameDate && sameCardName && sameCreatedAt;
+      });
+
+      return matched?.id || null;
+    } catch (error) {
+      console.warn('匹配云端还款记录ID失败:', error);
+      return null;
+    }
+  }
+
   // 生成还款记录ID
   generatePaymentId() {
     return 'payment_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);

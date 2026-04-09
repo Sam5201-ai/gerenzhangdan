@@ -410,6 +410,7 @@ Page({
       try {
         const cardDataManager = getCardDataManager();
         const matchedCard = installment.cardId ? await cardDataManager.getCard(installment.cardId) : null;
+        const confirmedAt = new Date().toISOString();
 
         await this.billDataManager.addPaymentRecord(installment.id, {
           cardId: installment.cardId || '',
@@ -419,7 +420,8 @@ Page({
           totalPeriods: installment.totalCount,
           cardName: installment.cardName,
           cardStyle: matchedCard?.style || installment.style || 'blue',
-          cardNumber: matchedCard?.cardNumber || installment.cardNumber || ''
+          cardNumber: matchedCard?.cardNumber || installment.cardNumber || '',
+          createdAt: confirmedAt
         });
         console.log('还款记录已添加到历史记录');
       } catch (error) {

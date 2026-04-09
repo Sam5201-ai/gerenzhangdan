@@ -382,14 +382,8 @@ class BillDataManager {
             card_id: resolvedCardId || null,
             bill_id: billId,
             card_name: paymentData.cardName,
-            card_style: paymentData.cardStyle || 'blue',
-            current_period: paymentData.currentPeriod || 1,
-            total_periods: paymentData.totalPeriods || 1,
             amount: paymentData.amount ? Number(String(paymentData.amount).replace(/,/g, '')) : 0,
-            payment_date: this.normalizeDateString(paymentData.paymentDate) || new Date().toISOString().slice(0, 10),
-            remaining_periods: (paymentData.totalPeriods != null && paymentData.currentPeriod != null)
-              ? Number(paymentData.totalPeriods) - Number(paymentData.currentPeriod)
-              : null
+            payment_date: this.normalizeDateString(paymentData.paymentDate) || new Date().toISOString().slice(0, 10)
           }
         });
       }
@@ -416,9 +410,9 @@ class BillDataManager {
           amount: r.amount != null ? String(r.amount) : '0',
           paymentDate: r.payment_date,
           cardName: r.card_name || '',
-          currentPeriod: r.current_period != null ? Number(r.current_period) : null,
-          totalPeriods: r.total_periods != null ? Number(r.total_periods) : null,
-          cardStyle: r.card_style || 'blue',
+          currentPeriod: null,
+          totalPeriods: null,
+          cardStyle: 'blue',
           cardNumber: '',
           createdAt: r.created_at || new Date().toISOString()
         }));

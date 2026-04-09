@@ -192,12 +192,8 @@ Deno.serve(async (req) => {
       card_id: r.card_id ?? null,
       bill_id: r.bill_id ?? null,
       card_name: r.card_name ?? null,
-      card_style: r.card_style ?? null,
-      current_period: r.current_period ?? null,
-      total_periods: r.total_periods ?? null,
       amount: r.amount ?? 0,
       payment_date: r.payment_date,
-      remaining_periods: r.remaining_periods ?? null,
     };
     const { data, error } = await supabase.from("repayment_records").insert(row).select("*").single();
     if (error) return json({ error: "repayments.add failed", detail: error }, 500);

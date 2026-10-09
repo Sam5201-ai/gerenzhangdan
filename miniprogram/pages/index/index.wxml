@@ -14,7 +14,7 @@
     </view>
   </view>
   <!-- 卡片列表 -->
-  <scroll-view class="cards-container" scroll-y="true" show-scrollbar="{{false}}" style="padding-top: {{statusBarHeight + 44 + 8}}px;">
+  <scroll-view class="cards-container" scroll-y="true" show-scrollbar="{{false}}" style="padding-top: {{statusBarHeight + 44 + 8}}px;" refresher-enabled="{{true}}" refresher-triggered="{{refreshing}}" bindrefresherrefresh="onRefresh">
     <!-- 空状态提示 -->
     <view wx:if="{{cardList.length === 0}}" class="empty-state">
       <view class="empty-icon">💳</view>

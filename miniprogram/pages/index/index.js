@@ -41,6 +41,8 @@ Page({
     
     // 日期选择弹窗
     showDatePicker: false,
+    // scroll-view 下拉刷新状态
+    refreshing: false,
     dateOptions: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31]
   },
 
@@ -61,7 +63,10 @@ Page({
     // 初始化管理器
     this.cardDataManager = getCardDataManager()
     this.userManager = getUserManager()
-    
+
+    // 缓存秒开：立即用本地缓存渲染首屏（同步读取、不发网络请求），云端最新数据由下方加载异步刷新
+    this.renderFromLocalCache()
+
     // 确保弹窗初始状态为隐藏
     this.setData({
       showCardPopup: false
@@ -103,6 +108,25 @@ Page({
     }
   },
   
+  // 用本地缓存立即渲染首屏（同步读取，不发起网络请求），避免冷启动空窗
+  renderFromLocalCache() {
+    try {
+      const cardList = this.cardDataManager.getCardListCacheSync()
+      if (!cardList || !cardList.length) return
+      const { getBillDataManager } = require('../../utils/BillDataManager.js')
+      const billList = getBillDataManager().getBillListCacheSync() || []
+      const processedCardList = cardList.map(card => ({
+        ...card,
+        maskedCardNumber: this.maskCardNumber(card.cardNumber),
+        installmentDebt: this.calculateInstallmentDebtFromBills(card, billList)
+      }))
+      this.setData({ cardList: processedCardList })
+      console.log('[index] 已用本地缓存秒开，卡片数:', processedCardList.length)
+    } catch (e) {
+      console.warn('[index] 缓存秒开失败，等待正常加载', e)
+    }
+  },
+
   // 加载卡片列表
   async loadCardList(options = {}) {
     const { showLoading = true, useCache = true } = options
@@ -247,6 +271,18 @@ Page({
     }
   },
   
+  // scroll-view 下拉刷新：清除退避标记，强制从云端获取最新数据
+  async onRefresh() {
+    try {
+      this.cardDataManager.cloudApi.resetBackoff()
+      await this.loadCardList({ showLoading: false, useCache: false })
+    } catch (e) {
+      console.warn('[index] 下拉刷新失败', e)
+    } finally {
+      this.setData({ refreshing: false })
+    }
+  },
+
   onHide: function() {
     // 页面隐藏时保存数据（由数据管理器自动处理）
   },

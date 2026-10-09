@@ -95,39 +95,58 @@ Page({
     }
   },
 
-  // 加载统计数据
+  // 加载统计数据（先用本地缓存秒开，再后台拉云端刷新）
   loadStatsData: async function() {
+    // 缓存秒开：立即用本地缓存渲染，避免冷启动空窗
+    this.renderStatsFromCache()
     try {
       const cardDataManager = getCardDataManager()
       const billDataManager = getBillDataManager()
-      
+
       const cards = await cardDataManager.getCardList()
-      const cardCount = cards ? cards.length : 0
       const bills = await billDataManager.getBillList()
-      const billList = bills || []
 
-      let totalRemainingAmount = 0
-      let monthlyPaymentTotal = 0
-      billList.forEach(bill => {
-        const remainingAmount = parseFloat((bill.remainingAmount || '0').toString().replace(/,/g, '')) || 0
-        const monthlyPayment = parseFloat((bill.monthlyPayment || '0').toString().replace(/,/g, '')) || 0
-        totalRemainingAmount += remainingAmount
-        if ((parseInt(bill.paidCount) || 0) < (parseInt(bill.totalCount) || 0)) {
-          monthlyPaymentTotal += monthlyPayment
-        }
-      })
-
-      const remainingPeriods = monthlyPaymentTotal > 0 ? Math.round(totalRemainingAmount / monthlyPaymentTotal) : 0
-      
       this.setData({
-        stats: {
-          cardCount,
-          totalLimit: Math.round(totalRemainingAmount).toString(),
-          installmentCount: remainingPeriods
-        }
+        stats: this.computeStats(cards || [], bills || [])
       })
     } catch (error) {
       console.error('加载统计数据失败:', error)
+    }
+  },
+
+  // 从卡片/账单列表计算统计数据
+  computeStats: function(cards, billList) {
+    const cardCount = cards ? cards.length : 0
+
+    let totalRemainingAmount = 0
+    let monthlyPaymentTotal = 0
+    billList.forEach(bill => {
+      const remainingAmount = parseFloat((bill.remainingAmount || '0').toString().replace(/,/g, '')) || 0
+      const monthlyPayment = parseFloat((bill.monthlyPayment || '0').toString().replace(/,/g, '')) || 0
+      totalRemainingAmount += remainingAmount
+      if ((parseInt(bill.paidCount) || 0) < (parseInt(bill.totalCount) || 0)) {
+        monthlyPaymentTotal += monthlyPayment
+      }
+    })
+
+    const remainingPeriods = monthlyPaymentTotal > 0 ? Math.round(totalRemainingAmount / monthlyPaymentTotal) : 0
+
+    return {
+      cardCount,
+      totalLimit: Math.round(totalRemainingAmount).toString(),
+      installmentCount: remainingPeriods
+    }
+  },
+
+  // 用本地缓存立即渲染统计（同步读取，不发起网络请求），避免冷启动空窗
+  renderStatsFromCache: function() {
+    try {
+      const cards = getCardDataManager().getCardListCacheSync() || []
+      const bills = getBillDataManager().getBillListCacheSync() || []
+      if (!cards.length && !bills.length) return
+      this.setData({ stats: this.computeStats(cards, bills) })
+    } catch (e) {
+      console.warn('[settings] 缓存秒开失败，等待正常加载', e)
     }
   },
 

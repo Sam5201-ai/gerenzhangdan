@@ -17,6 +17,7 @@ function requestJson(url, { method = 'POST', headers = {}, data = {} } = {}) {
     wx.request({
       url,
       method,
+      timeout: 8000, // 快速失败：默认60秒会导致云端不可用时页面长时间等待
       header: {
         // Supabase Functions 必需
         apikey: SUPABASE_ANON_KEY,
@@ -38,6 +39,11 @@ function requestJson(url, { method = 'POST', headers = {}, data = {} } = {}) {
 }
 
 class CloudApi {
+  constructor() {
+    // 会话级云端退避标记：云端调用失败后 2 分钟内不再尝试云端请求
+    this._cloudDownUntil = 0
+  }
+
   getAuth() {
     try {
       return wx.getStorageSync(STORAGE_KEY) || null
@@ -65,6 +71,28 @@ class CloudApi {
   isEnabled() {
     const auth = this.getAuth()
     return !!(auth && auth.openid && auth.token)
+  }
+
+  /**
+   * 云端调用失败后调用：进入 2 分钟退避期，期间数据层直接走本地，避免每次读取都等待超时
+   */
+  markCloudFailed() {
+    this._cloudDownUntil = Date.now() + 2 * 60 * 1000
+  }
+
+  /**
+   * 是否应该尝试云端请求：有登录态且未处于退避期
+   * （isEnabled 只表示"有历史登录态"，不代表云端当前可用，两者含义不同）
+   */
+  isCloudLikelyAvailable() {
+    return this.isEnabled() && Date.now() > (this._cloudDownUntil || 0)
+  }
+
+  /**
+   * 主动清除退避标记：用户显式操作（如下拉刷新）要求强制从云端获取数据时调用
+   */
+  resetBackoff() {
+    this._cloudDownUntil = 0
   }
 
   async login({ nickname } = {}) {
@@ -97,12 +125,18 @@ class CloudApi {
     if (!auth || !auth.token) {
       throw new Error('未登录云端（缺少 token）')
     }
-    return await requestJson(`${FUNCTIONS_BASE}/data`, {
-      headers: {
-        'x-kbs-token': auth.token
-      },
-      data: { action, payload }
-    })
+    try {
+      return await requestJson(`${FUNCTIONS_BASE}/data`, {
+        headers: {
+          'x-kbs-token': auth.token
+        },
+        data: { action, payload }
+      })
+    } catch (error) {
+      // 云端调用失败（网络不通/超时/HTTP错误），进入退避期
+      this.markCloudFailed()
+      throw error
+    }
   }
 
   async getReminderSettings() {

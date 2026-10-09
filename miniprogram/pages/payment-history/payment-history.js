@@ -33,7 +33,10 @@ Page({
     groupedRecords: [],
     
     // 是否显示空状态
-    isEmpty: false
+    isEmpty: false,
+
+    // scroll-view 下拉刷新状态
+    refreshing: false
   },
 
   onLoad: function(options) {
@@ -61,7 +64,8 @@ Page({
     }
     this.setData({ yearList })
     
-    // 先用缓存秒开，再后台静默同步云端
+    // 先用本地缓存秒开（不发网络请求），云端数据再由后续加载静默刷新覆盖
+    this.renderFromLocalCache()
     this.loadData({ useCache: true, silent: true, backgroundSync: true })
   },
 
@@ -140,35 +144,44 @@ Page({
     const { useCache = true } = options
     try {
       const paymentHistory = await this.billDataManager.getPaymentHistory({ useCache })
-      this._paymentHistoryCache = paymentHistory || []
-      
-      console.log('获取到的还款历史记录:', paymentHistory)
-      console.log('还款历史记录数量:', paymentHistory ? paymentHistory.length : 0)
-      
-      // 如果没有还款历史记录，显示空状态
-      if (!paymentHistory || paymentHistory.length === 0) {
-        console.log('没有还款历史记录，显示空状态')
-        this.setData({
-          isEmpty: true,
-          paymentRecords: [],
-          groupedRecords: []
-        })
-        return
-      }
-      
-      const resolvedPeriods = this.resolvePaymentPeriods(paymentHistory)
+      this.processAndRenderPayments(paymentHistory)
+    } catch (error) {
+      console.error('加载还款记录失败:', error)
+      this.setData({
+        isEmpty: true,
+        paymentRecords: [],
+        groupedRecords: []
+      })
+    }
+  },
 
-      // 处理还款历史数据
-      const hiddenIds = this.getHiddenPaymentRecordIds()
-      const records = paymentHistory
-        .filter(record => !hiddenIds.includes(record.id))
-        .map(record => {
+  // 处理还款历史并渲染页面（本地缓存秒开与云端加载共用）
+  processAndRenderPayments(paymentHistory) {
+    this._paymentHistoryCache = paymentHistory || []
+
+    // 如果没有还款历史记录，显示空状态
+    if (!paymentHistory || paymentHistory.length === 0) {
+      this.setData({
+        isEmpty: true,
+        paymentRecords: [],
+        groupedRecords: []
+      })
+      return
+    }
+
+    const resolvedPeriods = this.resolvePaymentPeriods(paymentHistory)
+
+    // 处理还款历史数据
+    const hiddenIds = this.getHiddenPaymentRecordIds()
+    const records = paymentHistory
+      .filter(record => !hiddenIds.includes(record.id))
+      .map(record => {
         const paymentDate = this.parsePaymentDate(record.paymentDate, record.confirmedAt || record.createdAt)
         const resolvedPeriod = resolvedPeriods[record.id] || {}
         const currentPeriod = Number(resolvedPeriod.currentPeriod || record.currentPeriod || 0)
         const totalPeriods = Number(resolvedPeriod.totalPeriods || record.totalPeriods || 0)
         const hasExplicitPeriod = currentPeriod > 0 && totalPeriods > 0
-        
+
         return {
           id: record.id,
           billId: record.billId,
@@ -187,32 +200,26 @@ Page({
           paymentMonth: `${paymentDate.getFullYear()}-${String(paymentDate.getMonth() + 1).padStart(2, '0')}`
         }
       })
-      
-      // 按时间倒序排序
-      records.sort((a, b) => new Date(b.paymentTime) - new Date(a.paymentTime))
-      
-      console.log('处理后的还款记录:', records)
-      
-      this.setData({
-        paymentRecords: records,
-        isEmpty: records.length === 0
-      })
-      
-      console.log('设置数据后的状态:', { 
-        recordsCount: records.length, 
-        isEmpty: records.length === 0
-      })
-      
-      // 分组显示
-      this.groupRecordsByMonth()
-      
-    } catch (error) {
-      console.error('加载还款记录失败:', error)
-      this.setData({
-        isEmpty: true,
-        paymentRecords: [],
-        groupedRecords: []
-      })
+
+    // 按时间倒序排序
+    records.sort((a, b) => new Date(b.paymentTime) - new Date(a.paymentTime))
+
+    this.setData({
+      paymentRecords: records,
+      isEmpty: records.length === 0
+    })
+
+    // 分组显示
+    this.groupRecordsByMonth()
+  },
+
+  // 用本地缓存立即渲染（秒开，不发任何网络请求），云端数据由后续加载静默刷新覆盖
+  renderFromLocalCache() {
+    try {
+      const paymentHistory = this.billDataManager.getPaymentHistoryCacheSync()
+      this.processAndRenderPayments(paymentHistory)
+    } catch (e) {
+      console.warn('[payment-history] 本地缓存渲染失败', e)
     }
   },
 
@@ -699,16 +706,30 @@ Page({
     wx.navigateBack()
   },
 
-  onShow: function() {
-    // 页面显示时重新加载数据，确保显示最新的还款记录
-    this.loadData()
-  },
-
   onPullDownRefresh: function() {
-    // 下拉刷新
-    this.loadData().then(() => {
+    // 下拉刷新：清除云端退避标记，强制从云端获取最新数据（静默加载，用下拉动画代替 loading）
+    if (this.billDataManager && this.billDataManager.cloudApi) {
+      this.billDataManager.cloudApi.resetBackoff()
+    }
+    this.loadData({ useCache: false, silent: true }).then(() => {
+      wx.stopPullDownRefresh()
+    }).catch(() => {
       wx.stopPullDownRefresh()
     })
+  },
+
+  // scroll-view 下拉刷新：清除退避标记，强制从云端获取最新数据
+  async onRefresh() {
+    try {
+      if (this.billDataManager && this.billDataManager.cloudApi) {
+        this.billDataManager.cloudApi.resetBackoff()
+      }
+      await this.loadData({ useCache: false, silent: true })
+    } catch (e) {
+      console.warn('[payment-history] 下拉刷新失败', e)
+    } finally {
+      this.setData({ refreshing: false })
+    }
   },
 
   onShareAppMessage: function() {

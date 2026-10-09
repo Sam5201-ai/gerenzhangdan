@@ -79,7 +79,9 @@ Page({
 
     // 导航栏相关数据
     statusBarHeight: 0,
-    navigationBarHeight: 0
+    navigationBarHeight: 0,
+    // scroll-view 下拉刷新状态
+    refreshing: false
   },
 
   onLoad: async function (options) {
@@ -88,23 +90,42 @@ Page({
     });
 
     this.billDataManager = getBillDataManager();
-    await this.loadInstallments();
+    // 缓存秒开：立即用本地缓存渲染（同步读取、不发网络请求），云端最新数据由下方异步静默刷新
+    this.renderInstallmentsFromCache();
     this.calculateStats();
     this.getSystemInfo();
     this.loadCardOptions();
+    // 后台静默拉取云端最新数据，返回后刷新列表与统计
+    this.loadInstallments().then(() => this.calculateStats());
     console.log('onLoad完成后的installments数据:', this.data.installments);
   },
 
-  onShow: async function () {
-    await this.loadInstallments();
-    this.calculateStats();
-    this.loadCardOptions();
-    
+  onShow: function () {
     // 设置自定义tabBar选中状态
     if (typeof this.getTabBar === 'function' && this.getTabBar()) {
       this.getTabBar().setData({
         selected: 1
       })
+    }
+
+    // 缓存秒开 + 后台静默刷新（不阻塞渲染）
+    this.renderInstallmentsFromCache();
+    this.calculateStats();
+    this.loadCardOptions();
+    this.loadInstallments().then(() => this.calculateStats());
+  },
+
+  // 用本地缓存立即渲染（同步读取，不发起网络请求），避免冷启动空窗
+  renderInstallmentsFromCache: function() {
+    try {
+      const billList = this.billDataManager.getBillListCacheSync();
+      if (!billList || !billList.length) return;
+      const normalizedInstallments = this.sortInstallmentsByPaymentDate(
+        billList.map(item => this.normalizeInstallment(item))
+      );
+      this.setData({ installments: normalizedInstallments });
+    } catch (e) {
+      console.warn('[installments] 缓存秒开失败，等待正常加载', e);
     }
   },
 
@@ -112,6 +133,19 @@ Page({
     await this.loadInstallments();
     this.calculateStats();
     wx.stopPullDownRefresh();
+  },
+
+  // scroll-view 下拉刷新：清除退避标记，强制从云端获取最新数据
+  async onRefresh() {
+    try {
+      this.billDataManager.cloudApi.resetBackoff();
+      await this.loadInstallments();
+      this.calculateStats();
+    } catch (e) {
+      console.warn('[installments] 下拉刷新失败', e);
+    } finally {
+      this.setData({ refreshing: false });
+    }
   },
 
   // 获取系统信息

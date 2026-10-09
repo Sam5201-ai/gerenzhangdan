@@ -11,7 +11,192 @@ class CardDataManager {
     this.storageManager = getStorageManager()
     this.cloudApi = getCloudApi()
     this.CARD_LIST_KEY = 'cardList'
+    this.CARD_PENDING_KEY = 'card_pending_ops'
   }
+
+  // ========== 离线待同步队列（云端失败时记录，恢复联网后自动上行） ==========
+
+  // 读取待同步操作队列，格式：[{ t: 'u'|'d', id, at }]
+  getPendingOps(key) {
+    try {
+      const ops = wx.getStorageSync(key)
+      return Array.isArray(ops) ? ops : []
+    } catch (e) {
+      return []
+    }
+  }
+
+  setPendingOps(key, ops) {
+    try {
+      wx.setStorageSync(key, ops)
+    } catch (e) {
+      console.warn('[CardDataManager] 保存待同步队列失败', e)
+    }
+  }
+
+  // 追加待同步操作；同一 id 只保留最新一条（单人使用，最后操作为准）
+  markPending(key, t, id) {
+    if (!id) return
+    const ops = this.getPendingOps(key).filter(op => op.id !== id)
+    ops.push({ t, id, at: Date.now() })
+    this.setPendingOps(key, ops)
+  }
+
+  // 离线保存成功的统一提示
+  toastOfflineSaved() {
+    wx.showToast({ title: '已离线保存，联网后自动同步', icon: 'none', duration: 2000 })
+  }
+
+  // 读取本地缓存的卡片列表（不走云端，用于同步/合并）
+  async getCardListLocalOnly() {
+    const local = this.storageManager.getLocalData(this.CARD_LIST_KEY)
+    return (local && Array.isArray(local.data)) ? local.data : []
+  }
+
+  // 同步读取本地缓存（供页面首屏秒开渲染，不发起任何网络请求）
+  getCardListCacheSync() {
+    const local = this.storageManager.getLocalData(this.CARD_LIST_KEY)
+    return (local && Array.isArray(local.data)) ? local.data : null
+  }
+
+  // 把本地待上行条目合并进云端拉取结果（防止离线改动被云端数据覆盖）
+  mergePendingIntoCards(pulled) {
+    const ops = this.getPendingOps(this.CARD_PENDING_KEY)
+    if (!ops.length) return pulled
+    let merged = Array.isArray(pulled) ? pulled.slice() : []
+    // 注意：getCardListLocalOnly 是 async，同步上下文中直接调用会拿到 Promise，
+    // 必须用同步的 getLocalData 读取本地缓存（否则迭代时抛 TypeError 导致整个云端读取失败）
+    const local = this.storageManager.getLocalData(this.CARD_LIST_KEY)
+    const localList = (local && Array.isArray(local.data)) ? local.data : []
+    for (const op of ops) {
+      if (op.t === 'd') {
+        merged = merged.filter(c => c.id !== op.id)
+      }
+    }
+    for (const op of ops) {
+      if (op.t !== 'u') continue
+      const localItem = localList.find(c => c.id === op.id)
+      if (!localItem) continue
+      const idx = merged.findIndex(c => c.id === op.id)
+      if (idx >= 0) merged[idx] = localItem
+      else merged.push(localItem)
+    }
+    return merged
+  }
+
+  // 本地卡片 id（card_ 前缀）在云端创建成功后，回映射为云端 uuid，并同步账单中的引用
+  async remapCardAfterUpsert(oldId, cloudRow) {
+    if (!oldId || !cloudRow || !cloudRow.id || cloudRow.id === oldId) return
+    const cardList = await this.getCardListLocalOnly()
+    const updated = cardList.map(c => (c.id === oldId ? {
+      ...c,
+      id: cloudRow.id,
+      createdAt: cloudRow.created_at ? new Date(cloudRow.created_at).getTime() : (c.createdAt || Date.now()),
+      updatedAt: cloudRow.updated_at ? new Date(cloudRow.updated_at).getTime() : Date.now()
+    } : c))
+    await this.storageManager.setData(this.CARD_LIST_KEY, updated, { immediate: false })
+    // 队列中引用旧 id 的操作同步更新
+    const ops = this.getPendingOps(this.CARD_PENDING_KEY).map(op => (op.id === oldId ? { ...op, id: cloudRow.id } : op))
+    this.setPendingOps(this.CARD_PENDING_KEY, ops)
+    // 账单缓存中引用该卡片的 cardId 一并更新
+    await this.remapCardIdInBills(oldId, cloudRow.id)
+  }
+
+  // 更新本地账单缓存中引用旧卡片 id 的 cardId
+  async remapCardIdInBills(oldCardId, newCardId) {
+    try {
+      const { getBillDataManager } = require('./BillDataManager.js')
+      const billDataManager = getBillDataManager()
+      const local = this.storageManager.getLocalData(billDataManager.BILL_LIST_KEY)
+      if (local && Array.isArray(local.data) && local.data.some(b => b.cardId === oldCardId)) {
+        const bills = local.data.map(b => (b.cardId === oldCardId ? { ...b, cardId: newCardId } : b))
+        await this.storageManager.setData(billDataManager.BILL_LIST_KEY, bills, { immediate: false })
+      }
+    } catch (e) {
+      console.warn('[CardDataManager] 更新账单中的卡片引用失败', e)
+    }
+  }
+
+  // 将待同步队列上行到云端；全部成功返回 true，任一失败返回 false（剩余操作保留待下次）
+  async syncCardPendingOps() {
+    let ops = this.getPendingOps(this.CARD_PENDING_KEY)
+    if (!ops.length) return true
+
+    let allDone = true
+    let cloudRows = null // 惰性加载：仅当存在 card_ 前缀本地卡需要防重比对时，拉取一次云端列表
+    for (const op of ops.slice()) {
+      try {
+        if (op.t === 'u') {
+          const cardList = await this.getCardListLocalOnly()
+          const item = cardList.find(c => c.id === op.id)
+          if (!item) {
+            // 本地已不存在该条目，丢弃该操作
+            ops = ops.filter(o => o !== op)
+            this.setPendingOps(this.CARD_PENDING_KEY, ops)
+            continue
+          }
+          const isLocalId = typeof item.id === 'string' && item.id.startsWith('card_')
+          // 防重复：card_ 前缀卡片上行前先与云端比对（卡号优先，其次名称+还款日）。
+          // 命中说明该卡云端已存在（如本地 id 曾被异常迁移替换），更新原卡片而非新建，
+          // 避免云端出现重复卡
+          let targetId
+          if (isLocalId) {
+            if (!cloudRows) {
+              const listResp = await this.cloudApi.call('cards.list')
+              cloudRows = (listResp && listResp.data) || []
+            }
+            const cardNo = String(item.cardNumber || '').replace(/\s+/g, '')
+            const matched = cloudRows.find(r => {
+              const rowNo = String(r.card_number || '').replace(/\s+/g, '')
+              if (cardNo && rowNo) return cardNo === rowNo
+              return !!r.name && r.name === item.name && Number(r.due_day) === Number(item.dueDate)
+            })
+            if (matched) targetId = matched.id
+          }
+          const resp = await this.cloudApi.call('cards.upsert', {
+            card: {
+              id: isLocalId ? targetId : item.id,
+              name: item.name,
+              card_number: item.cardNumber,
+              card_limit: item.limit ? Number(String(item.limit).replace(/,/g, '')) : null,
+              due_day: Number(item.dueDate),
+              style: item.style || null,
+              reminder_enabled: !!item.reminderEnabled,
+              reminder_days: Number(item.reminderDays || 3)
+            }
+          })
+          if (isLocalId) {
+            await this.remapCardAfterUpsert(item.id, resp && resp.data)
+          }
+          ops = ops.filter(o => o !== op)
+          this.setPendingOps(this.CARD_PENDING_KEY, ops)
+          console.log(`[CardDataManager] 待同步卡片已上行: ${item.name}`)
+        } else if (op.t === 'd') {
+          // card_ 前缀 = 从未上云的本地数据，无需云端删除
+          if (!(typeof op.id === 'string' && op.id.startsWith('card_'))) {
+            await this.cloudApi.call('cards.delete', { id: op.id })
+          }
+          ops = ops.filter(o => o !== op)
+          this.setPendingOps(this.CARD_PENDING_KEY, ops)
+        }
+      } catch (e) {
+        // 连续失败达到 3 次的操作暂时搁置（保留在队列、数据不丢），
+        // 不再阻塞后续操作与整体同步状态，避免单个坏数据卡死整个云端读取
+        const failCount = (op.failCount || 0) + 1
+        ops = ops.map(o => (o === op ? { ...o, failCount } : o))
+        this.setPendingOps(this.CARD_PENDING_KEY, ops)
+        if (failCount >= 3) {
+          console.warn(`[CardDataManager] 操作连续失败${failCount}次，暂时搁置（保留待后续重试）`, op.id, e)
+          continue
+        }
+        console.warn('[CardDataManager] 待同步操作上行失败，稍后自动重试', op, e)
+        allDone = false
+        break
+      }
+    }
+    return allDone
+  }
+
 
   /**
    * 获取所有卡片
@@ -20,28 +205,44 @@ class CardDataManager {
    */
   async getCardList(options = {}) {
     try {
-      // 云端优先：如果有登录态，则直接从云端拉取，并写回本地缓存
-      if (this.cloudApi.isEnabled()) {
-        const resp = await this.cloudApi.call('cards.list')
-        const rows = (resp && resp.data) ? resp.data : []
+      // 云端优先：有登录态且未处于离线退避期时，先同步本地待同步操作，再从云端拉取
+      if (this.cloudApi.isEnabled() && this.cloudApi.isCloudLikelyAvailable()) {
+        try {
+          // 同步失败不阻塞读取：联网可用就拉云端，待上行数据通过 merge 合并进结果，
+          // 避免队列中个别操作卡死导致云端数据永远拉不回来（读取与同步解耦）
+          await this.syncCardPendingOps()
 
-        const cards = rows.map(r => ({
-          // 本地仍沿用原字段名，保持页面无感
-          id: r.id,
-          name: r.name,
-          cardNumber: r.card_number,
-          limit: r.card_limit != null ? String(r.card_limit) : '',
-          dueDate: r.due_day,
-          style: r.style || 'blue',
-          reminderEnabled: !!r.reminder_enabled,
-          reminderDays: r.reminder_days || 3,
-          createdAt: r.created_at ? new Date(r.created_at).getTime() : Date.now(),
-          updatedAt: r.updated_at ? new Date(r.updated_at).getTime() : Date.now()
-        }))
+          {
+            const resp = await this.cloudApi.call('cards.list')
+            const rows = (resp && resp.data) ? resp.data : []
 
-        // 写回本地缓存（避免离线时空白）
-        await this.storageManager.setData(this.CARD_LIST_KEY, cards, { immediate: false })
-        return cards
+            let cards = rows.map(r => ({
+              // 本地仍沿用原字段名，保持页面无感
+              id: r.id,
+              name: r.name,
+              cardNumber: r.card_number,
+              limit: r.card_limit != null ? String(r.card_limit) : '',
+              dueDate: r.due_day,
+              style: r.style || 'blue',
+              reminderEnabled: !!r.reminder_enabled,
+              reminderDays: r.reminder_days || 3,
+              createdAt: r.created_at ? new Date(r.created_at).getTime() : Date.now(),
+              updatedAt: r.updated_at ? new Date(r.updated_at).getTime() : Date.now()
+            }))
+
+            // 极端情况：拉取成功但本地又产生了新的待同步操作，合并防止覆盖
+            if (this.getPendingOps(this.CARD_PENDING_KEY).length) {
+              cards = this.mergePendingIntoCards(cards)
+            }
+
+            // 写回本地缓存（避免离线时空白）
+            await this.storageManager.setData(this.CARD_LIST_KEY, cards, { immediate: false })
+            return cards
+          }
+        } catch (cloudError) {
+          // 云端不可用（停用/断网/超时）：回退到本地缓存，避免页面空白
+          console.warn('[CardDataManager] 云端不可用，回退使用本地缓存', cloudError)
+        }
       }
 
       const cardList = await this.storageManager.getData(this.CARD_LIST_KEY, {
@@ -53,10 +254,12 @@ class CardDataManager {
 
       const cards = cardList || []
       
-      // 数据迁移：将旧的数字ID转换为新的字符串ID
+      // 数据迁移：仅将旧的数字ID/缺失ID转换为新的字符串ID
+      // 注意：云端 uuid 与本地 card_ 前缀 id 都是合法字符串 id，绝不能重新生成，
+      // 否则账单/还款记录中的引用会全部失配（表现为卡包欠款统计为 0）
       let needsUpdate = false
       const migratedCards = cards.map(card => {
-        if (typeof card.id === 'number' || !card.id || !card.id.toString().startsWith('card_')) {
+        if (typeof card.id === 'number' || !card.id) {
           needsUpdate = true
           return {
             ...card,
@@ -106,20 +309,37 @@ class CardDataManager {
       })
 
       // 云端同步：逐条 upsert（数据量通常不大；后续可优化为批量 RPC）
-      if (this.cloudApi.isEnabled()) {
+      if (this.cloudApi.isEnabled() && this.cloudApi.isCloudLikelyAvailable()) {
+        let cloudSyncFailed = false
         for (const c of cleanedCardList) {
-          await this.cloudApi.call('cards.upsert', {
-            card: {
-              id: c.id && String(c.id).startsWith('card_') ? undefined : c.id, // 兼容旧本地id：不强行上云
-              name: c.name,
-              card_number: c.cardNumber,
-              card_limit: c.limit ? Number(String(c.limit).replace(/,/g, '')) : null,
-              due_day: Number(c.dueDate),
-              style: c.style || null,
-              reminder_enabled: !!c.reminderEnabled,
-              reminder_days: Number(c.reminderDays || 3)
+          if (cloudSyncFailed) {
+            // 云端已失败：剩余条目全部记入待同步队列，恢复联网后自动上行
+            this.markPending(this.CARD_PENDING_KEY, 'u', c.id)
+            continue
+          }
+          try {
+            const isLocalId = c.id && String(c.id).startsWith('card_')
+            const resp = await this.cloudApi.call('cards.upsert', {
+              card: {
+                id: isLocalId ? undefined : c.id, // 兼容旧本地id：不强行上云
+                name: c.name,
+                card_number: c.cardNumber,
+                card_limit: c.limit ? Number(String(c.limit).replace(/,/g, '')) : null,
+                due_day: Number(c.dueDate),
+                style: c.style || null,
+                reminder_enabled: !!c.reminderEnabled,
+                reminder_days: Number(c.reminderDays || 3)
+              }
+            })
+            if (isLocalId && resp && resp.data) {
+              // 本地id在云端创建成功，回映射为云端uuid，防止重复创建
+              await this.remapCardAfterUpsert(c.id, resp.data)
             }
-          })
+          } catch (cloudError) {
+            console.warn('[CardDataManager] 云端同步失败，剩余条目已记入待同步队列', cloudError)
+            this.markPending(this.CARD_PENDING_KEY, 'u', c.id)
+            cloudSyncFailed = true
+          }
         }
       }
 
@@ -143,31 +363,37 @@ class CardDataManager {
       const validCard = this.validateAndCleanCard(card)
       
       // 云端优先：由云端生成 uuid id
-      if (this.cloudApi.isEnabled()) {
-        const resp = await this.cloudApi.call('cards.upsert', {
-          card: {
-            name: validCard.name,
-            card_number: validCard.cardNumber,
-            card_limit: validCard.limit ? Number(String(validCard.limit).replace(/,/g, '')) : null,
-            due_day: Number(validCard.dueDate),
-            style: validCard.style || null,
-            reminder_enabled: !!validCard.reminderEnabled,
-            reminder_days: Number(validCard.reminderDays || 3)
+      if (this.cloudApi.isEnabled() && this.cloudApi.isCloudLikelyAvailable()) {
+        try {
+          const resp = await this.cloudApi.call('cards.upsert', {
+            card: {
+              name: validCard.name,
+              card_number: validCard.cardNumber,
+              card_limit: validCard.limit ? Number(String(validCard.limit).replace(/,/g, '')) : null,
+              due_day: Number(validCard.dueDate),
+              style: validCard.style || null,
+              reminder_enabled: !!validCard.reminderEnabled,
+              reminder_days: Number(validCard.reminderDays || 3)
+            }
+          })
+          const r = resp?.data
+          const saved = {
+            ...validCard,
+            id: r.id,
+            createdAt: r.created_at ? new Date(r.created_at).getTime() : Date.now(),
+            updatedAt: r.updated_at ? new Date(r.updated_at).getTime() : Date.now()
           }
-        })
-        const r = resp?.data
-        const saved = {
-          ...validCard,
-          id: r.id,
-          createdAt: r.created_at ? new Date(r.created_at).getTime() : Date.now(),
-          updatedAt: r.updated_at ? new Date(r.updated_at).getTime() : Date.now()
+          // 写本地缓存
+          const cardList = await this.getCardList({ useCache: false })
+          cardList.push(saved)
+          await this.storageManager.setData(this.CARD_LIST_KEY, cardList, { immediate: false })
+          console.log(`[CardDataManager] 卡片添加成功(云端): ${saved.name}`)
+          return saved
+        } catch (cloudError) {
+          // 云端不可用：回退为本地保存，联网后自动同步
+          console.warn('[CardDataManager] 云端添加失败，回退为本地保存', cloudError)
+          this.toastOfflineSaved()
         }
-        // 写本地缓存
-        const cardList = await this.getCardList({ useCache: false })
-        cardList.push(saved)
-        await this.storageManager.setData(this.CARD_LIST_KEY, cardList, { immediate: false })
-        console.log(`[CardDataManager] 卡片添加成功(云端): ${saved.name}`)
-        return saved
       }
 
       // 本地模式：生成唯一ID
@@ -182,10 +408,15 @@ class CardDataManager {
       cardList.push(validCard)
       
       // 保存列表
-      await this.saveCardList(cardList, { 
+      await this.saveCardList(cardList, {
         immediate: true, // 新增卡片立即同步
-        priority: 'high' 
+        priority: 'high'
       })
+
+      // 云端已启用但本次不可用：记入待同步队列，恢复联网后自动上行
+      if (this.cloudApi.isEnabled()) {
+        this.markPending(this.CARD_PENDING_KEY, 'u', validCard.id)
+      }
 
       console.log(`[CardDataManager] 卡片添加成功: ${validCard.name}`)
       return validCard
@@ -208,35 +439,41 @@ class CardDataManager {
       const validUpdates = this.validateAndCleanCard(updates, false)
 
       // 云端优先
-      if (this.cloudApi.isEnabled()) {
-        const resp = await this.cloudApi.call('cards.upsert', {
-          card: {
-            id: cardId,
-            name: validUpdates.name,
-            card_number: validUpdates.cardNumber,
-            card_limit: validUpdates.limit ? Number(String(validUpdates.limit).replace(/,/g, '')) : null,
-            due_day: Number(validUpdates.dueDate),
-            style: validUpdates.style || null,
-            reminder_enabled: !!validUpdates.reminderEnabled,
-            reminder_days: Number(validUpdates.reminderDays || 3)
-          }
-        })
+      if (this.cloudApi.isEnabled() && this.cloudApi.isCloudLikelyAvailable()) {
+        try {
+          const resp = await this.cloudApi.call('cards.upsert', {
+            card: {
+              id: cardId,
+              name: validUpdates.name,
+              card_number: validUpdates.cardNumber,
+              card_limit: validUpdates.limit ? Number(String(validUpdates.limit).replace(/,/g, '')) : null,
+              due_day: Number(validUpdates.dueDate),
+              style: validUpdates.style || null,
+              reminder_enabled: !!validUpdates.reminderEnabled,
+              reminder_days: Number(validUpdates.reminderDays || 3)
+            }
+          })
 
-        const r = resp?.data
-        // 更新本地缓存
-        const cardList = await this.getCardList({ useCache: false })
-        const cardIndex = cardList.findIndex(card => card.id == cardId)
-        const updatedCard = {
-          ...(cardIndex >= 0 ? cardList[cardIndex] : {}),
-          ...validUpdates,
-          id: r?.id || cardId,
-          updatedAt: r?.updated_at ? new Date(r.updated_at).getTime() : Date.now()
+          const r = resp?.data
+          // 更新本地缓存
+          const cardList = await this.getCardList({ useCache: false })
+          const cardIndex = cardList.findIndex(card => card.id == cardId)
+          const updatedCard = {
+            ...(cardIndex >= 0 ? cardList[cardIndex] : {}),
+            ...validUpdates,
+            id: r?.id || cardId,
+            updatedAt: r?.updated_at ? new Date(r.updated_at).getTime() : Date.now()
+          }
+          if (cardIndex >= 0) cardList[cardIndex] = updatedCard
+          else cardList.push(updatedCard)
+          await this.storageManager.setData(this.CARD_LIST_KEY, cardList, { immediate: false })
+          console.log(`[CardDataManager] 卡片更新成功(云端): ${updatedCard.name}`)
+          return updatedCard
+        } catch (cloudError) {
+          // 云端不可用：回退为本地更新，联网后自动同步
+          console.warn('[CardDataManager] 云端更新失败，回退为本地更新', cloudError)
+          this.toastOfflineSaved()
         }
-        if (cardIndex >= 0) cardList[cardIndex] = updatedCard
-        else cardList.push(updatedCard)
-        await this.storageManager.setData(this.CARD_LIST_KEY, cardList, { immediate: false })
-        console.log(`[CardDataManager] 卡片更新成功(云端): ${updatedCard.name}`)
-        return updatedCard
       }
 
       const cardList = await this.getCardList()
@@ -245,21 +482,26 @@ class CardDataManager {
       if (cardIndex === -1) {
         throw new Error(`卡片不存在: ${cardId}`)
       }
-      
+
       // 更新卡片
       const updatedCard = {
         ...cardList[cardIndex],
         ...validUpdates,
         updatedAt: Date.now()
       }
-      
+
       cardList[cardIndex] = updatedCard
 
       // 保存列表
-      await this.saveCardList(cardList, { 
+      await this.saveCardList(cardList, {
         immediate: true, // 更新卡片立即同步
-        priority: 'high' 
+        priority: 'high'
       })
+
+      // 云端已启用但本次不可用：记入待同步队列，恢复联网后自动上行
+      if (this.cloudApi.isEnabled()) {
+        this.markPending(this.CARD_PENDING_KEY, 'u', cardId)
+      }
 
       console.log(`[CardDataManager] 卡片更新成功: ${updatedCard.name}`)
       return updatedCard
@@ -278,14 +520,20 @@ class CardDataManager {
   async deleteCard(cardId) {
     try {
       // 云端优先
-      if (this.cloudApi.isEnabled()) {
-        await this.cloudApi.call('cards.delete', { id: cardId })
-        const cardList = await this.getCardList({ useCache: false })
-        const idx = cardList.findIndex(c => c.id == cardId)
-        if (idx >= 0) cardList.splice(idx, 1)
-        await this.storageManager.setData(this.CARD_LIST_KEY, cardList, { immediate: false })
-        console.log(`[CardDataManager] 卡片删除成功(云端): ${cardId}`)
-        return true
+      if (this.cloudApi.isEnabled() && this.cloudApi.isCloudLikelyAvailable()) {
+        try {
+          await this.cloudApi.call('cards.delete', { id: cardId })
+          const cardList = await this.getCardList({ useCache: false })
+          const idx = cardList.findIndex(c => c.id == cardId)
+          if (idx >= 0) cardList.splice(idx, 1)
+          await this.storageManager.setData(this.CARD_LIST_KEY, cardList, { immediate: false })
+          console.log(`[CardDataManager] 卡片删除成功(云端): ${cardId}`)
+          return true
+        } catch (cloudError) {
+          // 云端不可用：回退为本地删除，联网后自动同步
+          console.warn('[CardDataManager] 云端删除失败，回退为本地删除', cloudError)
+          this.toastOfflineSaved()
+        }
       }
 
       const cardList = await this.getCardList()
@@ -299,10 +547,21 @@ class CardDataManager {
       cardList.splice(cardIndex, 1)
 
       // 保存列表
-      await this.saveCardList(cardList, { 
+      await this.saveCardList(cardList, {
         immediate: true, // 删除卡片立即同步
-        priority: 'high' 
+        priority: 'high'
       })
+
+      // 云端已启用但本次不可用：记录待同步删除
+      if (this.cloudApi.isEnabled()) {
+        if (typeof cardId === 'string' && cardId.startsWith('card_')) {
+          // 从未上云的本地数据：清除其待上行操作即可
+          const ops = this.getPendingOps(this.CARD_PENDING_KEY).filter(op => !(op.id === cardId && op.t === 'u'))
+          this.setPendingOps(this.CARD_PENDING_KEY, ops)
+        } else {
+          this.markPending(this.CARD_PENDING_KEY, 'd', cardId)
+        }
+      }
 
       console.log(`[CardDataManager] 卡片删除成功: ${deletedCard.name}`)
       return true

@@ -12,7 +12,7 @@
     </view>
   </view>
   <!-- 分期列表 -->
-  <scroll-view class="installment-list" scroll-y="true" style="padding-top: {{statusBarHeight + 60}}px;">
+  <scroll-view class="installment-list" scroll-y="true" style="padding-top: {{statusBarHeight + 60}}px;" refresher-enabled="{{true}}" refresher-triggered="{{refreshing}}" bindrefresherrefresh="onRefresh">
     <!-- 空状态提示 -->
     <view class="empty-state" wx:if="{{installments.length === 0}}">
       <view class="empty-icon">📋</view>

@@ -4,6 +4,10 @@ const { getCardDataManager } = require('../../utils/CardDataManager')
 const { getBillDataManager } = require('../../utils/BillDataManager')
 const { getCloudApi, REPAYMENT_REMINDER_TEMPLATE_ID } = require('../../utils/CloudApi')
 
+const SHARE_TITLE = '信用卡管理神器：自动提醒 + 清晰统计，必备'
+const SHARE_PATH = '/pages/share-bridge/share-bridge?from=settings&shareVer=20260410-settings-v4'
+const SHARE_IMAGE = '/images/share.png'
+
 Page({
   data: {
     statusBarHeight: 0,
@@ -45,7 +49,9 @@ Page({
       }
     },
     // 用户名编辑相关
-    editingUsername: ''
+    editingUsername: '',
+    nicknameInputFocused: false,
+    isSavingUsername: false
   },
 
   onLoad: async function (options) {
@@ -53,6 +59,10 @@ Page({
     const systemInfo = wx.getSystemInfoSync()
     this.setData({
       statusBarHeight: systemInfo.statusBarHeight
+    })
+
+    wx.showShareMenu({
+      menus: ['shareAppMessage', 'shareTimeline']
     })
     
     // 先立即读取本地缓存，避免页面先闪默认头像/昵称
@@ -165,7 +175,8 @@ Page({
   editUsername: function() {
     this.setData({
       showUsernameEditModal: true,
-      editingUsername: this.data.userInfo.username
+      editingUsername: this.data.userInfo.username,
+      nicknameInputFocused: true
     })
     // 隐藏底部导航栏
     if (typeof this.getTabBar === 'function' && this.getTabBar()) {
@@ -177,13 +188,49 @@ Page({
 
   // 用户名输入
   onUsernameInput: function(e) {
+    const value = e.detail.value
     this.setData({
-      editingUsername: e.detail.value
+      editingUsername: value
+    })
+
+    if (e.detail?.cursor === -1 && value && !this.data.isSavingUsername) {
+      this.confirmUsernameEdit(true)
+    }
+  },
+
+  // 输入框聚焦状态变更
+  onUsernameFocus: function() {
+    this.setData({
+      nicknameInputFocused: true
+    })
+  },
+
+  onUsernameBlur: function() {
+    this.setData({
+      nicknameInputFocused: false
+    })
+  },
+
+  onNicknameReview: function(e) {
+    const nickname = e?.detail?.nickname || ''
+    if (!nickname || this.data.isSavingUsername) {
+      return
+    }
+
+    this.setData({
+      editingUsername: nickname,
+      nicknameInputFocused: false
+    }, () => {
+      this.confirmUsernameEdit(true)
     })
   },
 
   // 确认修改用户名
-  confirmUsernameEdit: async function() {
+  confirmUsernameEdit: async function(skipGuard = false) {
+    if (this.data.isSavingUsername && !skipGuard) {
+      return
+    }
+
     const newUsername = this.data.editingUsername.trim()
     if (!newUsername) {
       wx.showToast({
@@ -192,10 +239,15 @@ Page({
       })
       return
     }
+
+    this.setData({
+      isSavingUsername: true
+    })
     
     this.setData({
       'userInfo.username': newUsername,
-      showUsernameEditModal: false
+      showUsernameEditModal: false,
+      nicknameInputFocused: false
     })
     
     // 显示底部导航栏
@@ -209,21 +261,29 @@ Page({
     const userManager = getUserManager()
     try {
       await userManager.updateNickname(newUsername)
+      wx.showToast({
+        title: '用户名已更新',
+        icon: 'success'
+      })
     } catch (e) {
       console.warn('昵称同步失败:', e)
+      wx.showToast({
+        title: '昵称同步失败',
+        icon: 'none'
+      })
+    } finally {
+      this.setData({
+        isSavingUsername: false
+      })
     }
-    
-    wx.showToast({
-      title: '用户名已更新',
-      icon: 'success'
-    })
   },
 
   // 取消编辑用户名
   cancelUsernameEdit: function() {
     this.setData({
       showUsernameEditModal: false,
-      editingUsername: ''
+      editingUsername: '',
+      nicknameInputFocused: false
     })
     // 显示底部导航栏
     if (typeof this.getTabBar === 'function' && this.getTabBar()) {
@@ -354,11 +414,18 @@ Page({
         return
       }
 
+      let nextCount = Number(this.data.renewalNotifications.billReminder.count || 0)
+      if (!this.data.paymentReminderEnabled) {
+        const renewed = await cloudApi.renewReminderSubscription()
+        nextCount = Number(renewed?.repayment_reminder_count || nextCount + 1)
+      }
+
       this.setData({
         paymentReminderEnabled: true,
         'subscriptions.paymentReminder': true,
         'subscriptions.billReminder': true,
-        'renewalNotifications.billReminder.enabled': this.data.renewalNotifications.billReminder.count > 0
+        'renewalNotifications.billReminder.count': nextCount,
+        'renewalNotifications.billReminder.enabled': nextCount > 0
       })
     } catch (err) {
       console.log('订阅失败', err)
@@ -527,14 +594,25 @@ Page({
   },
 
   onShareAppMessage: function () {
+    return {
+      title: SHARE_TITLE,
+      path: SHARE_PATH,
+      imageUrl: SHARE_IMAGE
+    }
+  },
 
+  onShareTimeline: function () {
+    return {
+      title: SHARE_TITLE,
+      query: '',
+      imageUrl: SHARE_IMAGE
+    }
   },
 
   // 消息订阅入口
   showMessageSubscriptionEntry: function() {
     this.showMessageSubscription()
   },
-
   // 跳转到还款记录页面
   goToPaymentHistory: function() {
     wx.navigateTo({

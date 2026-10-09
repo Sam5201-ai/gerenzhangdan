@@ -76,7 +76,19 @@ function normalizeAmount(value: number | string | null | undefined) {
 }
 
 function isBillActive(bill: ReminderCandidate) {
-  return Number(bill.paid_installments || 0) < Number(bill.installment_count || 0) && bill.status !== "completed";
+  const paidInstallments = Number(bill.paid_installments || 0);
+  const installmentCount = Number(bill.installment_count || 0);
+  const status = String(bill.status || '').toLowerCase();
+
+  if (installmentCount <= 0) {
+    return false;
+  }
+
+  if (paidInstallments >= installmentCount) {
+    return false;
+  }
+
+  return status !== "completed";
 }
 
 async function requireOpenId(req: Request): Promise<string> {
@@ -341,8 +353,10 @@ Deno.serve(async (req) => {
       const user = userMap.get(bill.openid);
       const setting = settingsMap.get(bill.openid);
       const remainingCount = Number(setting?.repayment_reminder_count || 0);
+      const paidInstallments = Number(bill.paid_installments || 0);
+      const installmentCount = Number(bill.installment_count || 0);
 
-      if (!user || remainingCount <= 0) {
+      if (!user || remainingCount <= 0 || installmentCount <= 0 || paidInstallments >= installmentCount) {
         skipped += 1;
         continue;
       }

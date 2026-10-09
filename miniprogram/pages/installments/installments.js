@@ -2,6 +2,10 @@
 const { getCardDataManager } = require('../../utils/CardDataManager.js');
 const { getBillDataManager } = require('../../utils/BillDataManager.js');
 
+const SHARE_TITLE = '信用卡管理神器：自动提醒 + 清晰统计，必备';
+const SHARE_PATH = '/pages/share-bridge/share-bridge?from=installments&shareVer=20260410-installments-v4';
+const SHARE_IMAGE = '/images/share.png';
+
 Page({
   data: {
     // 分期账单数据
@@ -59,7 +63,9 @@ Page({
       monthlyTotalAmount: '0',
       totalAmount: '0',
       paidAmount: '0',
-      remainingAmount: '0'
+      remainingAmount: '0',
+      remainingPeriods: 0,
+      estimatedClearDate: '--'
     },
 
     // 日期选择器
@@ -77,6 +83,10 @@ Page({
   },
 
   onLoad: async function (options) {
+    wx.showShareMenu({
+      menus: ['shareAppMessage', 'shareTimeline']
+    });
+
     this.billDataManager = getBillDataManager();
     await this.loadInstallments();
     this.calculateStats();
@@ -201,6 +211,9 @@ Page({
       totalRemainingAmount = this.roundToTwo(totalRemainingAmount + itemRemainingAmount);
     });
 
+    const remainingPeriods = monthlyTotalAmount > 0 ? Math.round(totalRemainingAmount / monthlyTotalAmount) : 0;
+    const estimatedClearDate = this.calculateEstimatedClearDate(remainingPeriods);
+
     this.setData({
       'stats.totalCount': totalCount,
       'stats.completedCount': completedCount,
@@ -208,8 +221,21 @@ Page({
       'stats.monthlyTotalAmount': this.formatAmount(monthlyTotalAmount, 2),
       'stats.totalAmount': this.formatAmount(totalBillAmount, 2),
       'stats.paidAmount': this.formatAmount(totalPaidAmount, 2),
-      'stats.remainingAmount': this.formatAmount(totalRemainingAmount, 2)
+      'stats.remainingAmount': this.formatAmount(totalRemainingAmount, 2),
+      'stats.remainingPeriods': remainingPeriods,
+      'stats.estimatedClearDate': estimatedClearDate
     });
+  },
+
+  calculateEstimatedClearDate: function(remainingPeriods) {
+    if (!remainingPeriods || remainingPeriods <= 0) {
+      const now = new Date();
+      return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    }
+
+    const now = new Date();
+    const clearDate = new Date(now.getFullYear(), now.getMonth() + remainingPeriods, 1);
+    return `${clearDate.getFullYear()}-${String(clearDate.getMonth() + 1).padStart(2, '0')}`;
   },
 
   formatAmount: function(num, fractionDigits = 0) {
@@ -300,6 +326,22 @@ Page({
       })
     }
     this.setData({ showStatsPopup: false });
+  },
+
+  onShareAppMessage: function () {
+    return {
+      title: SHARE_TITLE,
+      path: SHARE_PATH,
+      imageUrl: SHARE_IMAGE
+    };
+  },
+
+  onShareTimeline: function () {
+    return {
+      title: SHARE_TITLE,
+      query: '',
+      imageUrl: SHARE_IMAGE
+    };
   },
 
   // 显示添加分期弹窗
@@ -1043,18 +1085,16 @@ Page({
   // 分享给朋友
   onShareAppMessage: function() {
     return {
-      title: '我的"负债清零"计划进行中！',
-      path: '/pages/installments/installments',
-      imageUrl: '/images/share.png'
+      title: SHARE_TITLE,
+      path: SHARE_PATH
     }
   },
 
   // 分享到朋友圈
   onShareTimeline: function() {
     return {
-      title: '我的"负债清零"计划进行中！',
-      query: '',
-      imageUrl: '/images/share.png'
+      title: SHARE_TITLE,
+      query: ''
     }
   }
 

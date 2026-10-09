@@ -3,6 +3,10 @@ const app = getApp()
 const { getCardDataManager } = require('../../utils/CardDataManager.js')
 const { getUserManager } = require('../../utils/UserManager.js')
 
+const SHARE_TITLE = '信用卡管理神器：自动提醒 + 清晰统计，必备'
+const SHARE_PATH = '/pages/index/index?shareVer=20260410-index'
+const SHARE_IMAGE = '/images/share.png'
+
 Page({
   data: {
     // 状态栏高度
@@ -48,6 +52,10 @@ Page({
     const systemInfo = wx.getSystemInfoSync()
     this.setData({
       statusBarHeight: systemInfo.statusBarHeight
+    })
+
+    wx.showShareMenu({
+      menus: ['shareAppMessage', 'shareTimeline']
     })
     
     // 初始化管理器
@@ -530,8 +538,17 @@ Page({
         totalDebt += remainingAmount
       })
 
-      console.log(`卡片 ${card.name} 分期欠款: ¥${totalDebt.toLocaleString()}`)
-      return totalDebt > 0 ? totalDebt.toLocaleString() : '0'
+      const normalizedDebt = Number(totalDebt.toFixed(2))
+      console.log(`卡片 ${card.name} 分期欠款: ¥${normalizedDebt.toLocaleString('en-US', {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 2
+      })}`)
+      return normalizedDebt > 0
+        ? normalizedDebt.toLocaleString('en-US', {
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 2
+          })
+        : '0'
     } catch (error) {
       console.error('计算分期欠款失败:', error)
       return '0'
@@ -554,18 +571,18 @@ Page({
   // 分享给朋友
   onShareAppMessage: function() {
     return {
-      title: '我的"负债清零"计划进行中！',
-      path: '/pages/index/index',
-      imageUrl: '/images/share.png'
+      title: SHARE_TITLE,
+      path: SHARE_PATH,
+      imageUrl: SHARE_IMAGE
     }
   },
 
   // 分享到朋友圈
   onShareTimeline: function() {
     return {
-      title: '我的"负债清零"计划进行中！',
+      title: SHARE_TITLE,
       query: '',
-      imageUrl: '/images/share.png'
+      imageUrl: SHARE_IMAGE
     }
   },
 

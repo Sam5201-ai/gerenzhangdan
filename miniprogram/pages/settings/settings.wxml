@@ -17,7 +17,10 @@
     <view class="profile-header" style="margin-top: {{statusBarHeight + 44}}px;">
     <view class="profile-info">
       <image class="avatar" src="{{userInfo.avatar || '/images/touxiang.png'}}" bindtap="changeAvatar" mode="aspectFill"></image>
-      <text class="username" bindtap="editUsername">{{userInfo.username || '卡包用户'}}</text>
+      <view class="username-row">
+        <text class="username" bindtap="editUsername">{{userInfo.username || '卡包用户'}}</text>
+        <text class="username-edit-icon" bindtap="editUsername">✎</text>
+      </view>
     </view>
   </view>
   
@@ -94,12 +97,12 @@
         </view>
       </view>
     </view>
+    <button class="share-recommend-btn" open-type="share" bindshareappmessage="onShareAppMessage">
+      <image class="share-btn-icon" src="/images/share.svg" mode="aspectFit"></image>
+      <text class="share-btn-text">推荐给好友</text>
+    </button>
   </view>
   
-  <!-- 本地存储提示 -->
-  <view class="storage-notice">
-    <text class="storage-notice-text">本地存储 注意备份</text>
-  </view>
   </view>
 </view>
 
@@ -112,8 +115,8 @@
     </view>
     <view class="popup-body">
       <view class="input-group">
-        <input class="username-input" type="text" placeholder="请输入用户名" 
-               value="{{editingUsername}}" bindinput="onUsernameInput" maxlength="20" />
+        <input class="username-input" type="nickname" placeholder="请输入用户名" 
+               value="{{editingUsername}}" bindinput="onUsernameInput" bindfocus="onUsernameFocus" bindblur="onUsernameBlur" bindnicknamereview="onNicknameReview" focus="{{nicknameInputFocused}}" maxlength="20" />
       </view>
     </view>
     <view class="popup-footer">
@@ -134,20 +137,19 @@
       <view class="subscription-item">
         <view class="subscription-info">
           <text class="subscription-title">卡片还款提醒</text>
-          <text class="subscription-desc">默认在还款日当天上午8点提醒</text>
         </view>
         <switch class="subscription-switch" checked="{{paymentReminderEnabled}}" bindchange="togglePaymentReminder"></switch>
       </view>
       <view class="renewal-section {{paymentReminderEnabled ? 'show' : ''}}">
-        <text class="renewal-tip">仅在已启用订阅且存在可接收次数时触发，每次点击续收并允许订阅后可增加 1 次提醒</text>
+        <text class="renewal-tip">以下通知可多次点击续收提醒</text>
         <view class="renewal-item">
           <view class="renewal-info">
             <text class="renewal-title">账单还款提醒</text>
-            <text class="renewal-desc">同一还款日的多张卡会分别提醒，同一分期账单每天仅提醒一次</text>
+            <text class="renewal-desc">还款日当天8:00提醒</text>
           </view>
           <view class="renewal-action">
-            <text class="renewal-count">可提醒{{renewalNotifications.billReminder.count}}次</text>
             <button class="renewal-btn" plain="true" bindtap="renewSubscription">续收+1</button>
+            <text class="renewal-count">可提醒{{renewalNotifications.billReminder.count}}次</text>
           </view>
         </view>
       </view>

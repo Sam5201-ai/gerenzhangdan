@@ -247,6 +247,14 @@
           <text class="stats-label">累计剩余还款金额：</text>
           <text class="stats-value">¥{{stats.remainingAmount}}</text>
         </view>
+        <view class="stats-item orange">
+          <text class="stats-label">剩余还款期数：</text>
+          <text class="stats-value">{{stats.remainingPeriods}}期</text>
+        </view>
+        <view class="stats-item cyan">
+          <text class="stats-label">预计清账时间：</text>
+          <text class="stats-value">{{stats.estimatedClearDate}}</text>
+        </view>
       </view>
     </view>
   </view>

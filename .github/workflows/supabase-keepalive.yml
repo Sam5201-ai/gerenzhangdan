@@ -1,0 +1,50 @@
+name: Supabase Keepalive
+
+# 目的：免费版 Supabase 项目若 7 天内无 API 调用会被自动停用（pause）。
+# 本工作流每天定时向 Supabase REST API 发送一次轻量请求，
+# 让 Supabase 判定项目处于活跃状态，从而避免被停用。
+# 另外借助 keepalive-workflow：仓库超过 50 天无提交时自动补一个空提交，
+# 刷新 GitHub 的“60 天无活动”判定，避免本定时任务被 GitHub 自动停用，
+# 因此长期不手动推代码也不受影响。
+
+on:
+  schedule:
+    # UTC 20:00 = 北京时间次日凌晨 4:00，每天执行一次（7 天停用窗口内余量充足）
+    - cron: '0 20 * * *'
+  workflow_dispatch:
+
+# keepalive-workflow 创建空提交需要写权限
+permissions:
+  contents: write
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_URL: https://yggtdyohiqlegdneshyx.supabase.co
+      # publishable key 本就是客户端公开密钥；默认取仓库 Secret，未配置时回退到内置值
+      SUPABASE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_UrSrFRDu7bi6-0ylWw3_jA_0Clk39SG' }}
+    steps:
+      - name: Ping Supabase REST API
+        run: |
+          set -e
+          for i in 1 2 3; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' \
+              -H "apikey: $SUPABASE_KEY" \
+              "$SUPABASE_URL/rest/v1/")
+            echo "attempt $i -> HTTP $code"
+            if [ "$code" = "200" ]; then
+              echo "Supabase is alive."
+              exit 0
+            fi
+            sleep 20
+          done
+          echo "Supabase REST API 未按预期响应，请登录 Supabase Dashboard 检查项目状态。"
+          exit 1
+
+      # 仓库超过 50 天无提交时自动创建一个空提交，
+      # 刷新 GitHub 的“60 天无活动”判定，防止本定时任务被自动停用。
+      # 仅定时触发时执行；用 GITHUB_TOKEN 创建的空提交不会触发其他工作流。
+      - name: Keep workflow alive
+        if: github.event_name == 'schedule'
+        uses: gautamkrishnar/keepalive-workflow@v2

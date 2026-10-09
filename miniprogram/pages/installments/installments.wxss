@@ -694,6 +694,14 @@
   background-color: #fef2f2;
 }
 
+.stats-item.orange {
+  background-color: #fff7ed;
+}
+
+.stats-item.cyan {
+  background-color: #ecfeff;
+}
+
 .stats-label {
   font-size: 28rpx;
   font-weight: 400;
@@ -723,6 +731,14 @@
   color: #dc2626;
 }
 
+.stats-item.orange .stats-label {
+  color: #c2410c;
+}
+
+.stats-item.cyan .stats-label {
+  color: #0f766e;
+}
+
 .stats-value {
   font-weight: 600;
   font-size: 28rpx;
@@ -750,6 +766,14 @@
 
 .stats-item.red .stats-value {
   color: #dc2626;
+}
+
+.stats-item.orange .stats-value {
+  color: #c2410c;
+}
+
+.stats-item.cyan .stats-value {
+  color: #0f766e;
 }
 
 

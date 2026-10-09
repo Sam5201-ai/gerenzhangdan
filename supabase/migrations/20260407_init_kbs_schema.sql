@@ -52,6 +52,7 @@ create table if not exists public.installment_bills (
 );
 create index if not exists idx_installment_bills_openid on public.installment_bills(openid);
 create index if not exists idx_installment_bills_card_id on public.installment_bills(card_id);
+create index if not exists idx_installment_bills_openid_payment_day on public.installment_bills(openid, payment_day);
 
 -- 还款记录明细
 create table if not exists public.repayment_records (
@@ -67,6 +68,33 @@ create table if not exists public.repayment_records (
 );
 create index if not exists idx_repayment_records_openid on public.repayment_records(openid);
 create index if not exists idx_repayment_records_bill_id on public.repayment_records(bill_id);
+
+-- 用户订阅消息配置：记录是否启用还款提醒，以及剩余可接收次数
+create table if not exists public.user_subscription_settings (
+  openid text primary key references public.app_users(openid) on delete cascade,
+  repayment_reminder_enabled boolean not null default false,
+  repayment_reminder_count int not null default 0 check (repayment_reminder_count >= 0),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists idx_user_subscription_settings_enabled on public.user_subscription_settings(repayment_reminder_enabled);
+
+-- 还款提醒发送日志：用于同一分期账单一天仅发送一次的去重控制
+create table if not exists public.repayment_reminder_logs (
+  id uuid primary key default gen_random_uuid(),
+  openid text not null references public.app_users(openid) on delete cascade,
+  bill_id uuid not null references public.installment_bills(id) on delete cascade,
+  card_id uuid references public.credit_cards(id) on delete set null,
+  template_id text not null,
+  reminder_date date not null,
+  scheduled_at timestamptz not null,
+  status text not null default 'sent',
+  failure_reason text,
+  created_at timestamptz not null default now(),
+  unique (bill_id, reminder_date)
+);
+create index if not exists idx_repayment_reminder_logs_openid on public.repayment_reminder_logs(openid);
+create index if not exists idx_repayment_reminder_logs_date on public.repayment_reminder_logs(reminder_date);
 
 -- 自动更新时间戳
 create or replace function public.set_updated_at()
@@ -94,3 +122,7 @@ create trigger trg_installment_bills_updated_at
 before update on public.installment_bills
 for each row execute function public.set_updated_at();
 
+drop trigger if exists trg_user_subscription_settings_updated_at on public.user_subscription_settings;
+create trigger trg_user_subscription_settings_updated_at
+before update on public.user_subscription_settings
+for each row execute function public.set_updated_at();

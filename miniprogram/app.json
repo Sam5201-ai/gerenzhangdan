@@ -3,7 +3,8 @@
     "pages/index/index",
     "pages/installments/installments",
     "pages/settings/settings",
-    "pages/payment-history/payment-history"
+    "pages/payment-history/payment-history",
+    "pages/share-bridge/share-bridge"
   ],
   "window": {
     "backgroundColor": "#667eea",

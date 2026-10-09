@@ -3,6 +3,9 @@ const { getBillDataManager } = require('../../utils/BillDataManager.js')
 const { getCardDataManager } = require('../../utils/CardDataManager.js')
 
 const HIDDEN_PAYMENT_RECORDS_KEY = 'hidden_payment_records'
+const SHARE_TITLE = '信用卡管理神器：自动提醒 + 清晰统计，必备'
+const SHARE_PATH = '/pages/index/index?shareVer=20260410-payment-history'
+const SHARE_IMAGE = '/images/share.png'
 
 Page({
   data: {
@@ -38,6 +41,10 @@ Page({
     const systemInfo = wx.getSystemInfoSync()
     this.setData({
       statusBarHeight: systemInfo.statusBarHeight
+    })
+
+    wx.showShareMenu({
+      menus: ['shareAppMessage', 'shareTimeline']
     })
     
     // 初始化管理器
@@ -702,6 +709,22 @@ Page({
     this.loadData().then(() => {
       wx.stopPullDownRefresh()
     })
+  },
+
+  onShareAppMessage: function() {
+    return {
+      title: SHARE_TITLE,
+      path: SHARE_PATH,
+      imageUrl: SHARE_IMAGE
+    }
+  },
+
+  onShareTimeline: function() {
+    return {
+      title: SHARE_TITLE,
+      query: '',
+      imageUrl: SHARE_IMAGE
+    }
   }
 })
 

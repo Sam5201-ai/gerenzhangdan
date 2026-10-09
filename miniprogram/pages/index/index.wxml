@@ -4,6 +4,9 @@
   <view class="custom-navbar" style="padding-top: {{statusBarHeight}}px;">
     <view class="navbar-content">
       <view class="navbar-left">
+        <view class="navbar-add-btn" bindtap="showAddCardPopup">
+          <text class="navbar-add-icon">+</text>
+        </view>
       </view>
       <text class="navbar-title">我的卡包</text>
       <view class="navbar-right">
@@ -16,7 +19,7 @@
     <view wx:if="{{cardList.length === 0}}" class="empty-state">
       <view class="empty-icon">💳</view>
       <text class="empty-title">暂无信用卡</text>
-      <text class="empty-desc">点击右下角的 + 按钮添加您的第一张信用卡</text>
+      <text class="empty-desc">点击顶部左侧的 + 按钮添加您的第一张信用卡</text>
     </view>
     
     <!-- 信用卡列表 -->
@@ -56,10 +59,6 @@
 
   </scroll-view>
 
-  <!-- 浮动添加按钮 -->
-  <view class="floating-add-btn" bindtap="showAddCardPopup">
-    <text class="floating-add-icon">+</text>
-  </view>
 
   <!-- 添加/编辑卡片弹窗 -->
   <view class="popup-overlay {{showCardPopup ? 'show' : ''}}" bindtap="hideCardPopup">

@@ -1,0 +1,6 @@
+<view class="share-bridge-page">
+  <image class="share-bridge-image" src="/images/share.png" mode="aspectFill"></image>
+  <view class="share-bridge-overlay">
+    <text class="share-bridge-title">信用卡管理神器：自动提醒 + 清晰统计，必备</text>
+  </view>
+</view>

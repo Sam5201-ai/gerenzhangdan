@@ -25,6 +25,28 @@
   justify-content: flex-start;
 }
 
+.navbar-add-btn {
+  width: 64rpx;
+  height: 64rpx;
+  border-radius: 18rpx;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 8rpx 20rpx rgba(102, 126, 234, 0.22);
+}
+
+.navbar-add-btn:active {
+  transform: scale(0.96);
+}
+
+.navbar-add-icon {
+  font-size: 42rpx;
+  line-height: 1;
+  color: #ffffff;
+  font-weight: 400;
+}
+
 .navbar-right {
   width: 80px;
   display: flex;
@@ -405,35 +427,6 @@ page {
   word-wrap: break-word;
   overflow-wrap: break-word;
   hyphens: auto;
-}
-
-/* 浮动添加按钮 */
-.floating-add-btn {
-  position: fixed;
-  right: 30rpx;
-  bottom: calc(140rpx + env(safe-area-inset-bottom) + 30rpx);
-  width: 120rpx;
-  height: 120rpx;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 8rpx 24rpx rgba(102, 126, 234, 0.4);
-  z-index: 999;
-  transition: all 0.3s ease;
-}
-
-.floating-add-btn:active {
-  transform: scale(0.95);
-  box-shadow: 0 4rpx 12rpx rgba(102, 126, 234, 0.3);
-}
-
-.floating-add-icon {
-  font-size: 60rpx;
-  color: white;
-  font-weight: 300;
-  line-height: 1;
 }
 
 /* 弹窗样式 */

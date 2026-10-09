@@ -3,7 +3,7 @@ name: Supabase Keepalive
 # 目的：免费版 Supabase 项目若 7 天内无 API 调用会被自动停用（pause）。
 # 本工作流每天定时向 Supabase REST API 发送一次轻量请求，
 # 让 Supabase 判定项目处于活跃状态，从而避免被停用。
-# 另外借助 keepalive-workflow：仓库超过 50 天无提交时自动补一个空提交，
+# 另外内置保活逻辑：仓库超过 50 天无提交时自动补一个空提交，
 # 刷新 GitHub 的“60 天无活动”判定，避免本定时任务被 GitHub 自动停用，
 # 因此长期不手动推代码也不受影响。
 
@@ -13,7 +13,7 @@ on:
     - cron: '0 20 * * *'
   workflow_dispatch:
 
-# keepalive-workflow 创建空提交需要写权限
+# 保活逻辑推送空提交需要写权限
 permissions:
   contents: write
 
@@ -25,6 +25,9 @@ jobs:
       # publishable key 本就是客户端公开密钥；默认取仓库 Secret，未配置时回退到内置值
       SUPABASE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_UrSrFRDu7bi6-0ylWw3_jA_0Clk39SG' }}
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Ping Supabase REST API
         run: |
           set -e
@@ -44,7 +47,21 @@ jobs:
 
       # 仓库超过 50 天无提交时自动创建一个空提交，
       # 刷新 GitHub 的“60 天无活动”判定，防止本定时任务被自动停用。
-      # 仅定时触发时执行；用 GITHUB_TOKEN 创建的空提交不会触发其他工作流。
+      # 直接用 git 实现，不依赖第三方 Action（原 keepalive-workflow 已被 GitHub 封禁）；
+      # 仅定时触发时执行；用 GITHUB_TOKEN 推送的空提交不会触发其他工作流。
       - name: Keep workflow alive
         if: github.event_name == 'schedule'
-        uses: gautamkrishnar/keepalive-workflow@v2
+        run: |
+          last=$(git log -1 --format=%ct)
+          now=$(date +%s)
+          age=$(( (now - last) / 86400 ))
+          echo "最近一次提交距今 $age 天"
+          if [ "$age" -ge 50 ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git commit --allow-empty -m "chore: keepalive（自动空提交，防止定时任务被停用）"
+            git push
+            echo "已创建保活空提交。"
+          else
+            echo "未达 50 天，跳过空提交。"
+          fi

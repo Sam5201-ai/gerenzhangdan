@@ -32,9 +32,11 @@ jobs:
         run: |
           set -e
           for i in 1 2 3; do
+            # 注意：/rest/v1/ 根端点只接受 secret key（publishable key 会返回 401），
+            # 因此改为对一张真实业务表做轻量只读查询，同样会被 Supabase 记为 API 活跃
             code=$(curl -s -o /dev/null -w '%{http_code}' \
               -H "apikey: $SUPABASE_KEY" \
-              "$SUPABASE_URL/rest/v1/")
+              "$SUPABASE_URL/rest/v1/user_subscription_settings?select=*&limit=1")
             echo "attempt $i -> HTTP $code"
             if [ "$code" = "200" ]; then
               echo "Supabase is alive."
